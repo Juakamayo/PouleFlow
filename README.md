@@ -34,8 +34,10 @@ Todo es una sola web app con rutas y permisos distintos:
 
 ```bash
 cp .env.example .env
-docker compose -f docker/docker-compose.yml up -d
+docker compose --env-file .env -f docker/docker-compose.yml up -d --build
 ```
+
+> Nota: el flag `--env-file .env` es necesario porque el `docker-compose.yml` vive en `docker/` pero el `.env` vive en la raíz del repo. Sin este flag, los servicios que usan sustitución de variables directa en el YAML (como `postgres`) no reciben las variables correctamente.
 
 ## Estado del proyecto
 
