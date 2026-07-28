@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import type { EventDTO, PoolDTO } from '@pouleflow/shared-types';
@@ -23,7 +23,6 @@ function computeIdealPoolCount(n: number): number {
   return Math.max(1, Math.min(Math.max(ideal, minPools), maxPools));
 }
 
-// Helpers para la matriz FIE
 const parseFencingScore = (val: string) => {
   if (!val) return { val: 0, isV: false };
   const upper = val.trim().toUpperCase();
@@ -48,9 +47,7 @@ export default function PoolsPage() {
   const [errors, setErrors] = useState<string[]>([]);
   const [lastResult, setLastResult] = useState<GenerateResult | null>(null);
   
-  // Estado para la matriz interactiva: clave = "poolId_row_col"
   const [matrix, setMatrix] = useState<Record<string, string>>({});
-  // Estado para aislar la impresión
   const [printPoolId, setPrintPoolId] = useState<number | null>(null);
 
   const eventQuery = useQuery({
@@ -88,7 +85,7 @@ export default function PoolsPage() {
       queryClient.invalidateQueries({ queryKey: ['pools', evId] });
       setLastResult(result);
       setErrors([]);
-      setMatrix({}); // Limpiar puntajes al regenerar
+      setMatrix({}); 
     },
     onError: (error) => {
       setErrors(error instanceof ApiError ? error.messages : ['Error al generar poules']);
@@ -116,7 +113,7 @@ export default function PoolsPage() {
       }
       const idealPools = computeIdealPoolCount(fencerCount);
       const warningMsg = isRegenerate
-        ? `⚠️ ATENCIÓN: Se borrarán las poules actuales.\n\nPor la cantidad de tiradores inscritos (${fencerCount}), se generarán ${idealPools} poule(s) automáticamente.\n\n¿Está de acuerdo con esto?`
+        ? `ATENCIÓN: Se borrarán las poules actuales.\n\nPor la cantidad de tiradores inscritos (${fencerCount}), se generarán ${idealPools} poule(s) automáticamente.\n\n¿Está de acuerdo con esto?`
         : `Por la cantidad de tiradores inscritos (${fencerCount}), se generarán ${idealPools} poule(s) automáticamente.\n\n¿Está de acuerdo con esto?`;
 
       if (window.confirm(warningMsg)) {
@@ -191,7 +188,6 @@ export default function PoolsPage() {
           const N = pool.assignments.length;
           const boutOrder = FIE_BOUT_ORDERS[N] || [];
           
-          // --- LÓGICA DE CÁLCULO DE LA MATRIZ ---
           const rowsStats = pool.assignments.map((_, i) => {
             let V = 0, TD = 0, TR = 0, matches = 0;
             for (let j = 0; j < N; j++) {
@@ -212,7 +208,6 @@ export default function PoolsPage() {
             return { i, V, TD, TR, Ind, ratio };
           });
 
-          // Calcular posiciones
           const sorted = [...rowsStats].sort((a, b) => {
             if (b.ratio !== a.ratio) return b.ratio - a.ratio;
             if (b.Ind !== a.Ind) return b.Ind - a.Ind;
@@ -222,14 +217,12 @@ export default function PoolsPage() {
           const placements: Record<number, number> = {};
           sorted.forEach((stat, rank) => { placements[stat.i] = rank + 1; });
 
-          // Control de impresión aislada
           const isPrintingThis = printPoolId === pool.id;
           const hideForPrintClass = printPoolId && !isPrintingThis ? 'hidden' : '';
 
           return (
             <div key={pool.id} className={`overflow-hidden rounded-lg border border-stone-300 bg-white shadow-sm ${hideForPrintClass} print:border-none print:shadow-none print:m-0`}>
               
-              {/* Header estilo Fencing Time */}
               <div className="flex items-center justify-between bg-blue-600 px-4 py-2 text-white print:bg-white print:text-black print:border-b-2 print:border-black">
                 <div className="flex items-center gap-4">
                   <h3 className="font-display text-lg font-bold">Poule #{pool.poolNumber}</h3>
@@ -243,12 +236,12 @@ export default function PoolsPage() {
                   </div>
                 </div>
                 <button onClick={() => handlePrint(pool.id)} className="rounded bg-white/20 px-3 py-1 text-sm font-medium hover:bg-white/30 print:hidden transition-colors">
-                  🖨️ Imprimir esta poule
+                  Imprimir esta poule
                 </button>
               </div>
               
               <div className="p-4 overflow-x-auto">
-                <table className="border-collapse text-sm mb-6 print:w-full">
+                <table className="border-collapse text-sm mb-8 print:w-full">
                   <thead>
                     <tr>
                       <th className="w-8 border border-stone-300 bg-stone-100 px-2 py-1 text-center font-bold print:bg-stone-100">N°</th>
@@ -283,7 +276,6 @@ export default function PoolsPage() {
                             const oppScoreRaw = matrix[`${pool.id}_${j}_${i}`];
                             let textColorClass = "text-graphite-900";
                             
-                            // Lógica visual de colores (Azul gana, Rojo pierde)
                             if (myScoreRaw && oppScoreRaw) {
                               const myNum = parseFencingScore(myScoreRaw);
                               const oppNum = parseFencingScore(oppScoreRaw);
@@ -319,34 +311,62 @@ export default function PoolsPage() {
                   </tbody>
                 </table>
 
-                {/* Listado Visual de Asaltos FIE - Ideal para los árbitros en papel */}
                 {boutOrder.length > 0 && (
-                  <div className="mt-6 flex gap-8 print:block">
-                    <div className="flex-1">
-                      <h4 className="font-display text-sm font-bold text-graphite-800 uppercase tracking-wider mb-3 border-b border-stone-300 pb-1">
-                        Orden de Asaltos
-                      </h4>
-                      <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 text-sm font-mono">
-                        {boutOrder.map((pair, idx) => (
-                          <div key={idx} className="flex justify-between border-b border-stone-200 py-1">
-                            <span className="text-stone-400 w-6">{idx + 1}.</span>
-                            <span className="font-bold flex-1 text-right">{pair[0]}</span>
-                            <span className="px-2 text-stone-300">-</span>
-                            <span className="font-bold flex-1">{pair[1]}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    <div className="w-64">
-                      <h4 className="font-display text-sm font-bold text-graphite-800 uppercase tracking-wider mb-3 border-b border-stone-300 pb-1">
-                        Árbitros
-                      </h4>
-                      <div className="space-y-4">
-                        <div className="border-b border-stone-300 h-8"></div>
-                        <div className="border-b border-stone-300 h-8"></div>
-                      </div>
-                    </div>
+                  <div className="mt-4 print:mt-8">
+                    <h4 className="text-sm font-medium text-graphite-800 mb-2">
+                      Estándar orden de match ({boutOrder.length} matches):
+                    </h4>
+                    <table className="w-full text-sm border-collapse border border-stone-300 print:text-xs">
+                      <thead>
+                        <tr className="bg-stone-50">
+                          <th className="border border-stone-300 px-2 py-1 text-center w-8">#</th>
+                          <th className="border border-stone-300 px-2 py-1 text-center w-16">Match</th>
+                          <th className="border border-stone-300 px-2 py-1 text-left">Tiradores</th>
+                          <th className="border border-stone-300 px-2 py-1 text-center w-24">Resultado</th>
+                          <th className="border border-stone-300 px-2 py-1 text-left w-48">ADVERTENCIAS</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {boutOrder.map((pair, idx) => {
+                          const aIdx = pair[0] - 1;
+                          const bIdx = pair[1] - 1;
+                          const fA = pool.assignments[aIdx]?.fencer;
+                          const fB = pool.assignments[bIdx]?.fencer;
+                          
+                          const scoreA = matrix[`${pool.id}_${aIdx}_${bIdx}`];
+                          const scoreB = matrix[`${pool.id}_${bIdx}_${aIdx}`];
+                          
+                          let resultDisplay = '';
+                          if (scoreA !== undefined && scoreB !== undefined && scoreA !== '' && scoreB !== '') {
+                             const parsedA = parseFencingScore(scoreA);
+                             const parsedB = parseFencingScore(scoreB);
+                             
+                             const aWins = parsedA.isV || (!parsedB.isV && parsedA.val > parsedB.val);
+                             const bWins = parsedB.isV || (!parsedA.isV && parsedB.val > parsedA.val);
+                             
+                             const strA = aWins ? `V${parsedA.val}` : `D${parsedA.val}`;
+                             const strB = bWins ? `V${parsedB.val}` : `D${parsedB.val}`;
+                             resultDisplay = `${strA} - ${strB}`;
+                          }
+
+                          return (
+                            <tr key={idx} className="bg-white">
+                              <td className="border border-stone-300 px-2 py-1 text-center text-stone-500">{idx + 1}</td>
+                              <td className="border border-stone-300 px-2 py-1 text-center font-bold text-graphite-700">
+                                {pair[0]} vs. {pair[1]}
+                              </td>
+                              <td className="border border-stone-300 px-2 py-1">
+                                <span className="uppercase">{fA?.lastName}</span> {fA?.firstName} <span className="text-stone-400 mx-2 text-xs">vs.</span> <span className="uppercase">{fB?.lastName}</span> {fB?.firstName}
+                              </td>
+                              <td className="border border-stone-300 px-2 py-1 text-center font-mono font-bold text-graphite-800">
+                                {resultDisplay}
+                              </td>
+                              <td className="border border-stone-300 px-2 py-1"></td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>
