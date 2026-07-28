@@ -1,35 +1,42 @@
-import {
-  Controller,
-  Delete,
-  Get,
-  Param,
-  ParseBoolPipe,
-  ParseIntPipe,
-  Post,
-  Query,
-} from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, ParseIntPipe, Delete } from '@nestjs/common';
 import { PoolService } from './pool.service';
+import { SaveScoresDto } from './dto/save-scores.dto';
 
-@Controller('events/:eventId/pools')
+@Controller('events/:eventId')
 export class PoolController {
   constructor(private readonly poolService: PoolService) {}
 
-  @Get()
-  findAll(@Param('eventId', ParseIntPipe) eventId: number) {
-    return this.poolService.findAllForEvent(eventId);
-  }
-
-  @Post('generate')
-  generate(
+  @Post('pools/generate')
+  generatePools(
     @Param('eventId', ParseIntPipe) eventId: number,
-    @Query('force', new ParseBoolPipe({ optional: true })) force?: boolean,
-    @Query('poolCount', new ParseIntPipe({ optional: true })) poolCount?: number,
+    @Body('force') force?: boolean,
+    @Body('poolCount') poolCount?: number,
   ) {
-    return this.poolService.generateForEvent(eventId, { force, poolCount });
+    return this.poolService.generateForEvent(eventId, force, poolCount);
   }
 
-  @Delete()
-  remove(@Param('eventId', ParseIntPipe) eventId: number) {
-    return this.poolService.removeAllForEvent(eventId);
+  @Get('pools')
+  getPools(@Param('eventId', ParseIntPipe) eventId: number) {
+    return this.poolService.findByEvent(eventId);
+  }
+
+  @Delete('pools')
+  deletePools(@Param('eventId', ParseIntPipe) eventId: number) {
+    return this.poolService.deleteByEvent(eventId);
+  }
+
+  // --- NUEVOS ENDPOINTS LÓGICOS ---
+
+  @Post('pools/:poolId/scores')
+  saveScores(
+    @Param('poolId', ParseIntPipe) poolId: number,
+    @Body() dto: SaveScoresDto,
+  ) {
+    return this.poolService.savePoolScores(poolId, dto);
+  }
+
+  @Get('ranking')
+  getEventRanking(@Param('eventId', ParseIntPipe) eventId: number) {
+    return this.poolService.calculateEventRanking(eventId);
   }
 }
