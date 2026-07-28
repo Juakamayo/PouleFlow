@@ -7,12 +7,16 @@ import { api, ApiError } from '../lib/api';
 const weaponLabels: Record<string, string> = { EPEE: 'Espada', FOIL: 'Florete', SABER: 'Sable' };
 const genderLabels: Record<string, string> = { MALE: 'Masculino', FEMALE: 'Femenino', MIXED: 'Mixto' };
 
+// Se agregaron matrices para 2 y 3 tiradores para evitar errores en pruebas con pocos inscritos
 const FIE_BOUT_ORDERS: Record<number, [number, number][]> = {
+  2: [[1,2]],
+  3: [[1,2], [2,3], [1,3]],
   4: [[1,4], [2,3], [1,3], [2,4], [3,4], [1,2]],
   5: [[1,2], [3,4], [5,1], [2,3], [5,4], [1,3], [2,5], [4,1], [3,5], [4,2]],
   6: [[1,2], [4,5], [2,3], [5,6], [3,1], [6,4], [2,5], [1,4], [5,3], [1,6], [4,2], [3,6], [5,1], [3,4], [6,2]],
   7: [[1,4], [2,5], [3,6], [7,1], [5,4], [2,3], [6,7], [5,1], [4,3], [6,2], [5,7], [3,1], [4,6], [7,2], [3,5], [1,6], [2,4], [7,3], [6,5], [1,2], [4,7]],
   8: [[2,3], [1,5], [7,4], [6,8], [1,2], [3,4], [5,6], [8,7], [4,1], [5,2], [8,3], [6,7], [4,2], [8,1], [7,5], [3,6], [2,8], [5,4], [6,1], [3,7], [4,8], [2,6], [3,5], [1,7], [4,6], [8,5], [7,2], [1,3]],
+  9: [[1,9], [2,8], [3,7], [4,6], [1,5], [2,9], [3,8], [4,7], [5,6], [1,2], [3,9], [4,8], [5,7], [1,6], [2,3], [4,9], [5,8], [6,7], [1,3], [2,4], [5,9], [6,8], [7,1], [4,5], [2,7], [3,6], [1,8], [9,7], [5,2], [4,3], [6,1], [8,7], [9,4], [3,5], [2,6], [1,4]],
 };
 
 function computeIdealPoolCount(n: number): number {
@@ -49,6 +53,7 @@ export default function PoolsPage() {
   
   const [matrix, setMatrix] = useState<Record<string, string>>({});
   const [printPoolId, setPrintPoolId] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<number | 'ALL'>('ALL'); // Estado de pestañas
 
   const eventQuery = useQuery({
     queryKey: ['events', 'detail', evId],
@@ -86,6 +91,7 @@ export default function PoolsPage() {
       setLastResult(result);
       setErrors([]);
       setMatrix({}); 
+      setActiveTab('ALL'); // Resetear pestaña al generar
     },
     onError: (error) => {
       setErrors(error instanceof ApiError ? error.messages : ['Error al generar poules']);
@@ -98,6 +104,7 @@ export default function PoolsPage() {
       queryClient.invalidateQueries({ queryKey: ['pools', evId] });
       setLastResult(null);
       setMatrix({});
+      setActiveTab('ALL');
     },
   });
 
@@ -137,6 +144,9 @@ export default function PoolsPage() {
   const ev = eventQuery.data;
   const eventLabel = ev ? `${weaponLabels[ev.weapon?.name ?? ''] ?? ev.weapon?.name} ${genderLabels[ev.gender]} ${ev.category?.name}` : '...';
   const hasPools = (poolsQuery.data?.length ?? 0) > 0;
+  
+  // Filtrar las poules a renderizar según la pestaña seleccionada
+  const visiblePools = poolsQuery.data?.filter(p => activeTab === 'ALL' || p.id === activeTab) || [];
 
   return (
     <div className="max-w-6xl mx-auto pb-12">
@@ -183,8 +193,37 @@ export default function PoolsPage() {
         )}
       </div>
 
+      {/* Sistema de Pestañas */}
+      {hasPools && (
+        <div className="mb-6 flex space-x-1 border-b border-stone-300 print:hidden overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('ALL')}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === 'ALL'
+                ? 'border-blue-600 text-blue-700 bg-blue-50/50'
+                : 'border-transparent text-graphite-600 hover:text-graphite-900 hover:bg-stone-50'
+            }`}
+          >
+            Vista general
+          </button>
+          {poolsQuery.data?.map((pool) => (
+            <button
+              key={pool.id}
+              onClick={() => setActiveTab(pool.id)}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === pool.id
+                  ? 'border-blue-600 text-blue-700 bg-blue-50/50'
+                  : 'border-transparent text-graphite-600 hover:text-graphite-900 hover:bg-stone-50'
+              }`}
+            >
+              Poule #{pool.poolNumber}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="flex flex-col gap-8">
-        {poolsQuery.data?.map((pool) => {
+        {visiblePools.map((pool) => {
           const N = pool.assignments.length;
           const boutOrder = FIE_BOUT_ORDERS[N] || [];
           
