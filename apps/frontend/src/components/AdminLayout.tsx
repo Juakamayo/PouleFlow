@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 const navItems = [
   { to: '/admin/countries', label: 'Países' },
   { to: '/admin/clubs', label: 'Clubes' },
+  { to: '/admin/fencers', label: 'Tiradores' },
 ];
 
 export default function AdminLayout() {

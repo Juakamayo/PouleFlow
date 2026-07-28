@@ -20,7 +20,9 @@ export interface FencerDTO {
   firstName: string;
   lastName: string;
   clubId: number | null;
+  club?: ClubDTO | null;
   countryId: number;
+  country?: CountryDTO;
   nationalRank: number | null;
   internationalRank: number | null;
   points: number;
