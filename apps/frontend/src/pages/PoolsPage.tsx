@@ -7,7 +7,6 @@ import { api, ApiError } from '../lib/api';
 const weaponLabels: Record<string, string> = { EPEE: 'Espada', FOIL: 'Florete', SABER: 'Sable' };
 const genderLabels: Record<string, string> = { MALE: 'Masculino', FEMALE: 'Femenino', MIXED: 'Mixto' };
 
-// Matriz FIE inyectada localmente para renderizado visual inmediato
 const FIE_BOUT_ORDERS: Record<number, [number, number][]> = {
   4: [[1,4], [2,3], [1,3], [2,4], [3,4], [1,2]],
   5: [[1,2], [3,4], [5,1], [2,3], [5,4], [1,3], [2,5], [4,1], [3,5], [4,2]],
@@ -15,6 +14,15 @@ const FIE_BOUT_ORDERS: Record<number, [number, number][]> = {
   7: [[1,4], [2,5], [3,6], [7,1], [5,4], [2,3], [6,7], [5,1], [4,3], [6,2], [5,7], [3,1], [4,6], [7,2], [3,5], [1,6], [2,4], [7,3], [6,5], [1,2], [4,7]],
   8: [[2,3], [1,5], [7,4], [6,8], [1,2], [3,4], [5,6], [8,7], [4,1], [5,2], [8,3], [6,7], [4,2], [8,1], [7,5], [3,6], [2,8], [5,4], [6,1], [3,7], [4,8], [2,6], [3,5], [1,7], [4,6], [8,5], [7,2], [1,3]],
 };
+
+// Calcula cuántas poules hacer según la guía estándar de esgrima
+function computeIdealPoolCount(n: number): number {
+  if (n <= 8) return 1;
+  const minPools = Math.ceil(n / 8);
+  const maxPools = Math.max(minPools, Math.floor(n / 4));
+  const ideal = Math.round(n / 6.5);
+  return Math.max(1, Math.min(Math.max(ideal, minPools), maxPools));
+}
 
 interface GenerateResult {
   pools: PoolDTO[];
@@ -35,16 +43,32 @@ export default function PoolsPage() {
     queryFn: () => api.get<EventDTO>(`/events/${evId}`),
   });
 
+  // Consultamos las inscripciones para saber exactamente cuántos tiradores hay
+  const registrationsQuery = useQuery({
+    queryKey: ['registrations', 'event', evId],
+    queryFn: () => api.get<any>(`/registration?eventId=${evId}`).catch(() => api.get<any>(`/registrations?eventId=${evId}`)),
+  });
+
   const poolsQuery = useQuery({
     queryKey: ['pools', evId],
     queryFn: () => api.get<PoolDTO[]>(`/events/${evId}/pools`),
   });
 
+  // Calculamos la cantidad de tiradores de forma segura
+  const fencerCount = (() => {
+    const evData = eventQuery.data as any;
+    if (evData && evData._count?.registrations) return evData._count.registrations;
+    if (!registrationsQuery.data) return 0;
+    if (Array.isArray(registrationsQuery.data)) return registrationsQuery.data.length;
+    if (Array.isArray(registrationsQuery.data.data)) return registrationsQuery.data.data.length;
+    return 0;
+  })();
+
   const generateMutation = useMutation({
-    mutationFn: (force: boolean) => {
+    mutationFn: ({ force, finalPoolCount }: { force: boolean; finalPoolCount?: string }) => {
       const params = new URLSearchParams();
       if (force) params.set('force', 'true');
-      if (manualPoolCount) params.set('poolCount', manualPoolCount);
+      if (finalPoolCount) params.set('poolCount', finalPoolCount);
       return api.post<GenerateResult>(`/events/${evId}/pools/generate?${params.toString()}`, {});
     },
     onSuccess: (result) => {
@@ -68,14 +92,30 @@ export default function PoolsPage() {
     },
   });
 
-  function handleGenerate() {
+  function handleGenerateClick(isRegenerate = false) {
     setErrors([]);
-    generateMutation.mutate(false);
-  }
 
-  function handleRegenerate() {
-    if (window.confirm('¿Regenerar poules? Esto borra las poules actuales y cualquier resultado ya cargado en ellas.')) {
-      generateMutation.mutate(true);
+    if (manualPoolCount) {
+      if (isRegenerate) {
+        if (!window.confirm(`¿Regenerar poules forzando ${manualPoolCount} poule(s)? Esto borra los resultados actuales.`)) return;
+      }
+      generateMutation.mutate({ force: isRegenerate, finalPoolCount: manualPoolCount });
+    } else {
+      if (fencerCount === 0) {
+        alert("No se pudo detectar la cantidad de tiradores o no hay inscritos. Asegúrese de inscribir tiradores primero.");
+        return;
+      }
+      
+      const idealPools = computeIdealPoolCount(fencerCount);
+      const warningMsg = isRegenerate
+        ? `⚠️ ATENCIÓN: Se borrarán las poules actuales.\n\nPor la cantidad de tiradores inscritos (${fencerCount}), se generarán ${idealPools} poule(s) automáticamente.\n\n¿Está de acuerdo con esto?`
+        : `Por la cantidad de tiradores inscritos (${fencerCount}), se generarán ${idealPools} poule(s) automáticamente.\n\n¿Está de acuerdo con esto?`;
+
+      if (window.confirm(warningMsg)) {
+        // Enviamos el número ideal explícitamente.
+        // ¡Esto soluciona el error del backend! (al no enviar un string vacío).
+        generateMutation.mutate({ force: isRegenerate, finalPoolCount: idealPools.toString() });
+      }
     }
   }
 
@@ -117,7 +157,7 @@ export default function PoolsPage() {
         </div>
         {!hasPools ? (
           <button
-            onClick={handleGenerate}
+            onClick={() => handleGenerateClick(false)}
             disabled={generateMutation.isPending}
             className="rounded bg-graphite-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-graphite-700 disabled:opacity-50"
           >
@@ -126,14 +166,18 @@ export default function PoolsPage() {
         ) : (
           <>
             <button
-              onClick={handleRegenerate}
+              onClick={() => handleGenerateClick(true)}
               disabled={generateMutation.isPending}
               className="rounded border border-piste px-4 py-2 text-sm font-medium text-piste transition-colors hover:bg-piste hover:text-white disabled:opacity-50"
             >
               {generateMutation.isPending ? 'Regenerando...' : 'Regenerar poules'}
             </button>
             <button
-              onClick={() => deleteMutation.mutate()}
+              onClick={() => {
+                if (window.confirm('¿Eliminar todas las poules y sus resultados?')) {
+                  deleteMutation.mutate();
+                }
+              }}
               disabled={deleteMutation.isPending}
               className="rounded border border-stone-300 px-4 py-2 text-sm font-medium text-graphite-700 transition-colors hover:bg-stone-100"
             >
@@ -177,14 +221,14 @@ export default function PoolsPage() {
                 </h3>
               </div>
               
-              {/* Tabla de Asignaciones (Tiradores inscritos) */}
               <table className="w-full text-sm">
                 <tbody>
                   {pool.assignments.map((a, idx) => (
                     <tr key={a.id} className="border-b border-stone-100 last:border-0">
                       <td className="px-4 py-2 font-mono text-xs text-graphite-700/60">{idx + 1}</td>
-                      <td className="px-4 py-2 font-medium">
-                        {a.fencer?.lastName}, {a.fencer?.firstName}
+                      <td className="px-4 py-2 font-medium flex items-baseline gap-1.5">
+                        <span className="text-graphite-800">{a.fencer?.lastName}</span>
+                        <span className="text-xs text-graphite-500">{a.fencer?.firstName}</span>
                       </td>
                       <td className="px-4 py-2 text-right text-xs text-graphite-700/60">
                         {a.fencer?.club?.shortCode ?? '—'}
@@ -194,7 +238,6 @@ export default function PoolsPage() {
                 </tbody>
               </table>
 
-              {/* Listado Visual de Asaltos FIE */}
               {boutOrder.length > 0 && (
                 <div className="mt-auto border-t border-stone-300 bg-stone-50">
                   <div className="px-4 py-2 border-b border-stone-200">
@@ -204,7 +247,6 @@ export default function PoolsPage() {
                   </div>
                   <ul className="p-4 space-y-2 max-h-64 overflow-y-auto">
                     {boutOrder.map((pair, idx) => {
-                      // Restamos 1 porque la FIE es base-1 y el array es base-0
                       const fA = pool.assignments[pair[0] - 1]?.fencer;
                       const fB = pool.assignments[pair[1] - 1]?.fencer;
                       
@@ -212,7 +254,6 @@ export default function PoolsPage() {
                         <li key={idx} className="flex items-center justify-between text-sm border border-stone-200 rounded p-2 bg-white shadow-sm">
                           <div className="w-6 text-center font-mono text-xs text-stone-400 font-bold">{idx + 1}</div>
                           
-                          {/* Tirador A */}
                           <div className="flex flex-1 items-baseline justify-end gap-1.5 text-right">
                             <span className="font-medium text-graphite-800">{fA?.lastName}</span>
                             <span className="text-xs text-graphite-500">{fA?.firstName}</span>
@@ -220,7 +261,6 @@ export default function PoolsPage() {
                           
                           <div className="px-3 font-mono font-bold text-piste/70 text-xs">VS</div>
                           
-                          {/* Tirador B */}
                           <div className="flex flex-1 items-baseline justify-start gap-1.5">
                             <span className="font-medium text-graphite-800">{fB?.lastName}</span>
                             <span className="text-xs text-graphite-500">{fB?.firstName}</span>
