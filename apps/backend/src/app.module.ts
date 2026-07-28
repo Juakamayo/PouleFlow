@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
-import { AppService } from './app.service'; // Puedes quitar esta línea si no usas el servicio base
 import { PrismaModule } from './prisma/prisma.module';
 import { CountryModule } from './modules/country/country.module';
 import { ClubModule } from './modules/club/club.module';
@@ -26,6 +25,6 @@ import { TableauModule } from './modules/tableau/tableau.module';
     TableauModule,
   ],
   controllers: [AppController],
-  providers: [], // <-- Quitamos AppService de aquí
+  providers: [],
 })
 export class AppModule {}
