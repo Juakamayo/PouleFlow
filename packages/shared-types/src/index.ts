@@ -36,11 +36,32 @@ export interface FencerDTO {
   points: number;
 }
 
+export interface WeaponDTO {
+  id: number;
+  name: WeaponName;
+}
+
+export interface CategoryDTO {
+  id: number;
+  name: string;
+}
+
+export interface TournamentDTO {
+  id: number;
+  name: string;
+  startDate: string;
+  endDate: string;
+  location: string | null;
+}
+
 export interface EventDTO {
   id: number;
   tournamentId: number;
+  tournament?: TournamentDTO;
   weaponId: number;
+  weapon?: WeaponDTO;
   categoryId: number;
+  category?: CategoryDTO;
   gender: Gender;
 }
 
