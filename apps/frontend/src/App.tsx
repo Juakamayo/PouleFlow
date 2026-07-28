@@ -8,6 +8,7 @@ import TournamentsPage from './pages/TournamentsPage';
 import EventsPage from './pages/EventsPage';
 import RegistrationsPage from './pages/RegistrationsPage';
 import PoolsPage from './pages/PoolsPage';
+import RankingPage from './pages/RankingPage'; // <-- Importación agregada
 
 function MesaDeControl() {
   return <div className="p-6">Mesa de control — PouleFlow</div>;
@@ -36,6 +37,11 @@ export default function App() {
           <Route
             path="tournaments/:tournamentId/events/:eventId/pools"
             element={<PoolsPage />}
+          />
+          {/* <-- Nueva ruta agregada --> */}
+          <Route
+            path="tournaments/:tournamentId/events/:eventId/ranking"
+            element={<RankingPage />}
           />
         </Route>
         <Route path="/mesa/:pistaId" element={<MesaDeControl />} />
