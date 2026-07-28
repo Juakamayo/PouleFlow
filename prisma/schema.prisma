@@ -39,6 +39,7 @@ model Country {
 model Club {
   id        Int      @id @default(autoincrement())
   name      String
+  shortCode String   @unique
   countryId Int
   country   Country  @relation(fields: [countryId], references: [id])
   fencers   Fencer[]

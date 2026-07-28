@@ -6,6 +6,7 @@ import { api, ApiError } from '../lib/api';
 export default function ClubsPage() {
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
+  const [shortCode, setShortCode] = useState('');
   const [countryId, setCountryId] = useState<number | ''>('');
   const [errors, setErrors] = useState<string[]>([]);
 
@@ -20,10 +21,12 @@ export default function ClubsPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (dto: { name: string; countryId: number }) => api.post<ClubDTO>('/clubs', dto),
+    mutationFn: (dto: { name: string; shortCode: string; countryId: number }) =>
+      api.post<ClubDTO>('/clubs', dto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clubs'] });
       setName('');
+      setShortCode('');
       setCountryId('');
       setErrors([]);
     },
@@ -40,7 +43,7 @@ export default function ClubsPage() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (countryId === '') return;
-    createMutation.mutate({ name: name.trim(), countryId });
+    createMutation.mutate({ name: name.trim(), shortCode: shortCode.trim().toUpperCase(), countryId });
   }
 
   const hasCountries = (countriesQuery.data?.length ?? 0) > 0;
@@ -75,8 +78,21 @@ export default function ClubsPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
-              placeholder="Club Esgrima Santiago"
+              placeholder="Club Esgrima Astarloa"
               className="w-full rounded border border-stone-300 px-3 py-2 text-sm focus:border-piste focus:outline-none focus:ring-1 focus:ring-piste"
+            />
+          </div>
+          <div className="w-28">
+            <label className="mb-1 block text-xs font-medium text-graphite-700">
+              Código
+            </label>
+            <input
+              value={shortCode}
+              onChange={(e) => setShortCode(e.target.value)}
+              required
+              maxLength={10}
+              placeholder="ASTAR"
+              className="w-full rounded border border-stone-300 px-3 py-2 text-sm font-mono uppercase focus:border-piste focus:outline-none focus:ring-1 focus:ring-piste"
             />
           </div>
           <div className="w-48">
@@ -120,6 +136,7 @@ export default function ClubsPage() {
           <thead>
             <tr className="border-b border-stone-300 bg-stone-100 text-left text-xs uppercase tracking-wide text-graphite-700">
               <th className="px-4 py-3 font-medium">Nombre</th>
+              <th className="px-4 py-3 font-medium">Código</th>
               <th className="px-4 py-3 font-medium">País</th>
               <th className="px-4 py-3 font-medium"></th>
             </tr>
@@ -127,14 +144,14 @@ export default function ClubsPage() {
           <tbody>
             {clubsQuery.isLoading && (
               <tr>
-                <td colSpan={3} className="px-4 py-6 text-center text-graphite-700/60">
+                <td colSpan={4} className="px-4 py-6 text-center text-graphite-700/60">
                   Cargando...
                 </td>
               </tr>
             )}
             {clubsQuery.data?.length === 0 && (
               <tr>
-                <td colSpan={3} className="px-4 py-6 text-center text-graphite-700/60">
+                <td colSpan={4} className="px-4 py-6 text-center text-graphite-700/60">
                   Aún no hay clubes cargados.
                 </td>
               </tr>
@@ -142,6 +159,7 @@ export default function ClubsPage() {
             {clubsQuery.data?.map((club) => (
               <tr key={club.id} className="border-b border-stone-100 last:border-0">
                 <td className="px-4 py-3">{club.name}</td>
+                <td className="px-4 py-3 font-mono text-xs">{club.shortCode}</td>
                 <td className="px-4 py-3 text-graphite-700/80">{club.country?.name ?? '—'}</td>
                 <td className="px-4 py-3 text-right">
                   <button

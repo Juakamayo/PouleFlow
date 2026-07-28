@@ -60,6 +60,10 @@ export class ClubService {
   private mapPrismaError(error: unknown) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === 'P2002') {
+        const target = (error.meta?.target as string[] | undefined) ?? [];
+        if (target.includes('shortCode')) {
+          return new ConflictException('Ya existe un club con ese código corto (shortCode)');
+        }
         return new ConflictException('Ya existe un club con ese nombre en ese país');
       }
       if (error.code === 'P2003' || error.code === 'P2025') {

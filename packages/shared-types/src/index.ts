@@ -10,6 +10,7 @@ export interface CountryDTO {
 export interface ClubDTO {
   id: number;
   name: string;
+  shortCode: string;
   countryId: number;
   country?: CountryDTO;
 }
