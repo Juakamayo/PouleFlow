@@ -59,7 +59,6 @@ export class TableauService {
 
     const standardOrder = this.getTableauOrder(targetSize);
     const defaultTouches = dto.defaultTouches ?? 15;
-    const finalTouches = dto.finalTouches ?? defaultTouches;
 
     const matchesData = standardOrder.map((seedA, index) => {
       const seedB = standardOrder[index + 1];
@@ -102,7 +101,7 @@ export class TableauService {
             fencerB: { include: { club: true, country: true } },
             winner: true,
           },
-          orderBy: [{ round: 'desc' }, { matchNumber: 'asc' }],
+          orderBy: { round: 'desc' },
         },
       },
     });
