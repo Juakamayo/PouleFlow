@@ -7,6 +7,15 @@ import { api, ApiError } from '../lib/api';
 const weaponLabels: Record<string, string> = { EPEE: 'Espada', FOIL: 'Florete', SABER: 'Sable' };
 const genderLabels: Record<string, string> = { MALE: 'Masculino', FEMALE: 'Femenino', MIXED: 'Mixto' };
 
+// Matriz FIE inyectada localmente para renderizado visual inmediato
+const FIE_BOUT_ORDERS: Record<number, [number, number][]> = {
+  4: [[1,4], [2,3], [1,3], [2,4], [3,4], [1,2]],
+  5: [[1,2], [3,4], [5,1], [2,3], [5,4], [1,3], [2,5], [4,1], [3,5], [4,2]],
+  6: [[1,2], [4,5], [2,3], [5,6], [3,1], [6,4], [2,5], [1,4], [5,3], [1,6], [4,2], [3,6], [5,1], [3,4], [6,2]],
+  7: [[1,4], [2,5], [3,6], [7,1], [5,4], [2,3], [6,7], [5,1], [4,3], [6,2], [5,7], [3,1], [4,6], [7,2], [3,5], [1,6], [2,4], [7,3], [6,5], [1,2], [4,7]],
+  8: [[2,3], [1,5], [7,4], [6,8], [1,2], [3,4], [5,6], [8,7], [4,1], [5,2], [8,3], [6,7], [4,2], [8,1], [7,5], [3,6], [2,8], [5,4], [6,1], [3,7], [4,8], [2,6], [3,5], [1,7], [4,6], [8,5], [7,2], [1,3]],
+};
+
 interface GenerateResult {
   pools: PoolDTO[];
   poolSizes: number[];
@@ -65,11 +74,7 @@ export default function PoolsPage() {
   }
 
   function handleRegenerate() {
-    if (
-      window.confirm(
-        '¿Regenerar poules? Esto borra las poules actuales y cualquier resultado ya cargado en ellas.',
-      )
-    ) {
+    if (window.confirm('¿Regenerar poules? Esto borra las poules actuales y cualquier resultado ya cargado en ellas.')) {
       generateMutation.mutate(true);
     }
   }
@@ -84,10 +89,7 @@ export default function PoolsPage() {
   return (
     <div className="max-w-4xl">
       <header className="mb-6">
-        <Link
-          to={`/admin/tournaments/${tournamentId}/events`}
-          className="text-xs font-medium text-graphite-700 hover:text-piste"
-        >
+        <Link to={`/admin/tournaments/${tournamentId}/events`} className="text-xs font-medium text-graphite-700 hover:text-piste">
           ← Volver a Eventos
         </Link>
         <h2 className="mt-2 font-display text-2xl font-semibold uppercase tracking-wide">
@@ -152,8 +154,7 @@ export default function PoolsPage() {
       {lastResult && lastResult.unresolvedClubConflicts > 0 && (
         <div className="mb-6 rounded border border-yellow-400/40 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
           Se generaron las poules, pero quedaron <strong>{lastResult.unresolvedClubConflicts}</strong>{' '}
-          par(es) de tiradores del mismo club en la misma poule — no fue posible separarlos por
-          completo dado el número de poules disponibles. Revisa manualmente si es necesario.
+          par(es) de tiradores del mismo club en la misma poule. Revisa manualmente si es necesario.
         </div>
       )}
 
@@ -163,31 +164,69 @@ export default function PoolsPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {poolsQuery.data?.map((pool) => (
-          <div key={pool.id} className="overflow-hidden rounded border border-stone-300 bg-white">
-            <div className="border-b border-stone-300 bg-stone-100 px-4 py-2">
-              <h3 className="font-display text-sm font-semibold uppercase tracking-wide">
-                Poule {pool.poolNumber}
-              </h3>
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        {poolsQuery.data?.map((pool) => {
+          const poolSize = pool.assignments.length;
+          const boutOrder = FIE_BOUT_ORDERS[poolSize] || [];
+
+          return (
+            <div key={pool.id} className="overflow-hidden rounded border border-stone-300 bg-white flex flex-col">
+              <div className="border-b border-stone-300 bg-stone-100 px-4 py-2">
+                <h3 className="font-display text-sm font-semibold uppercase tracking-wide">
+                  Poule {pool.poolNumber}
+                </h3>
+              </div>
+              
+              {/* Tabla de Asignaciones (Tiradores inscritos) */}
+              <table className="w-full text-sm">
+                <tbody>
+                  {pool.assignments.map((a, idx) => (
+                    <tr key={a.id} className="border-b border-stone-100 last:border-0">
+                      <td className="px-4 py-2 font-mono text-xs text-graphite-700/60">{idx + 1}</td>
+                      <td className="px-4 py-2 font-medium">
+                        {a.fencer?.lastName}, {a.fencer?.firstName}
+                      </td>
+                      <td className="px-4 py-2 text-right text-xs text-graphite-700/60">
+                        {a.fencer?.club?.shortCode ?? '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Listado Visual de Asaltos FIE */}
+              {boutOrder.length > 0 && (
+                <div className="mt-auto border-t border-stone-300 bg-stone-50">
+                  <div className="px-4 py-2 border-b border-stone-200">
+                    <h4 className="font-display text-xs font-semibold text-graphite-600 uppercase tracking-wider">
+                      Llamado a Pista ({boutOrder.length} asaltos)
+                    </h4>
+                  </div>
+                  <ul className="p-4 space-y-2 max-h-64 overflow-y-auto">
+                    {boutOrder.map((pair, idx) => {
+                      // Restamos 1 porque la FIE es base-1 y el array es base-0
+                      const fA = pool.assignments[pair[0] - 1]?.fencer;
+                      const fB = pool.assignments[pair[1] - 1]?.fencer;
+                      
+                      return (
+                        <li key={idx} className="flex items-center justify-between text-sm border border-stone-200 rounded p-2 bg-white shadow-sm">
+                          <div className="w-6 text-center font-mono text-xs text-stone-400 font-bold">{idx + 1}</div>
+                          <div className="flex flex-1 items-center justify-end gap-2 text-right">
+                            <span className="font-medium text-graphite-800">{fA?.lastName}</span>
+                          </div>
+                          <div className="px-3 font-mono font-bold text-piste/70 text-xs">VS</div>
+                          <div className="flex flex-1 items-center justify-start gap-2">
+                            <span className="font-medium text-graphite-800">{fB?.lastName}</span>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
             </div>
-            <table className="w-full text-sm">
-              <tbody>
-                {pool.assignments.map((a, idx) => (
-                  <tr key={a.id} className="border-b border-stone-100 last:border-0">
-                    <td className="px-4 py-2 font-mono text-xs text-graphite-700/60">{idx + 1}</td>
-                    <td className="px-4 py-2">
-                      {a.fencer?.lastName}, {a.fencer?.firstName}
-                    </td>
-                    <td className="px-4 py-2 text-right text-xs text-graphite-700/60">
-                      {a.fencer?.club?.shortCode ?? '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
