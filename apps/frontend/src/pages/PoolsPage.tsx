@@ -7,7 +7,6 @@ import { api, ApiError } from '../lib/api';
 const weaponLabels: Record<string, string> = { EPEE: 'Espada', FOIL: 'Florete', SABER: 'Sable' };
 const genderLabels: Record<string, string> = { MALE: 'Masculino', FEMALE: 'Femenino', MIXED: 'Mixto' };
 
-// Se agregaron matrices para 2 y 3 tiradores para evitar errores en pruebas con pocos inscritos
 const FIE_BOUT_ORDERS: Record<number, [number, number][]> = {
   2: [[1,2]],
   3: [[1,2], [2,3], [1,3]],
@@ -53,7 +52,7 @@ export default function PoolsPage() {
   
   const [matrix, setMatrix] = useState<Record<string, string>>({});
   const [printPoolId, setPrintPoolId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<number | 'ALL'>('ALL'); // Estado de pestañas
+  const [activeTab, setActiveTab] = useState<number | 'ALL'>('ALL');
 
   const eventQuery = useQuery({
     queryKey: ['events', 'detail', evId],
@@ -91,7 +90,7 @@ export default function PoolsPage() {
       setLastResult(result);
       setErrors([]);
       setMatrix({}); 
-      setActiveTab('ALL'); // Resetear pestaña al generar
+      setActiveTab('ALL');
     },
     onError: (error) => {
       setErrors(error instanceof ApiError ? error.messages : ['Error al generar poules']);
@@ -106,6 +105,21 @@ export default function PoolsPage() {
       setMatrix({});
       setActiveTab('ALL');
     },
+  });
+
+  // --- NUEVA MUTACIÓN PARA GUARDAR PUNTAJES ---
+  const saveScoresMutation = useMutation({
+    mutationFn: ({ poolId, bouts }: { poolId: number, bouts: any[] }) => {
+      return api.post(`/events/${evId}/pools/${poolId}/scores`, { bouts });
+    },
+    onSuccess: () => {
+      alert('¡Resultados guardados exitosamente en la base de datos!');
+      queryClient.invalidateQueries({ queryKey: ['pools', evId] });
+    },
+    onError: (error) => {
+      alert('Error al guardar los resultados.');
+      console.error(error);
+    }
   });
 
   function handleGenerateClick(isRegenerate = false) {
@@ -141,11 +155,48 @@ export default function PoolsPage() {
     }, 150);
   };
 
+  // --- FUNCIÓN PARA EMPAQUETAR Y ENVIAR AL BACKEND ---
+  const handleSaveScores = (pool: PoolDTO) => {
+    const N = pool.assignments.length;
+    const boutOrder = FIE_BOUT_ORDERS[N] || [];
+    const boutsToSave: any[] = [];
+
+    boutOrder.forEach((pair, idx) => {
+      const aIdx = pair[0] - 1;
+      const bIdx = pair[1] - 1;
+      
+      const fA = pool.assignments[aIdx];
+      const fB = pool.assignments[bIdx];
+      
+      const scoreARaw = matrix[`${pool.id}_${aIdx}_${bIdx}`];
+      const scoreBRaw = matrix[`${pool.id}_${bIdx}_${aIdx}`];
+
+      if (scoreARaw !== undefined && scoreBRaw !== undefined && scoreARaw !== '' && scoreBRaw !== '') {
+         const parsedA = parseFencingScore(scoreARaw);
+         const parsedB = parseFencingScore(scoreBRaw);
+         
+         boutsToSave.push({
+           fencerAId: fA.fencer?.id,
+           fencerBId: fB.fencer?.id,
+           scoreA: parsedA.val,
+           scoreB: parsedB.val,
+           boutOrder: idx + 1
+         });
+      }
+    });
+
+    if (boutsToSave.length === 0) {
+       alert('No hay asaltos con resultados completos (ida y vuelta) para guardar.');
+       return;
+    }
+
+    saveScoresMutation.mutate({ poolId: pool.id, bouts: boutsToSave });
+  };
+
   const ev = eventQuery.data;
   const eventLabel = ev ? `${weaponLabels[ev.weapon?.name ?? ''] ?? ev.weapon?.name} ${genderLabels[ev.gender]} ${ev.category?.name}` : '...';
   const hasPools = (poolsQuery.data?.length ?? 0) > 0;
   
-  // Filtrar las poules a renderizar según la pestaña seleccionada
   const visiblePools = poolsQuery.data?.filter(p => activeTab === 'ALL' || p.id === activeTab) || [];
 
   return (
@@ -193,7 +244,6 @@ export default function PoolsPage() {
         )}
       </div>
 
-      {/* Sistema de Pestañas */}
       {hasPools && (
         <div className="mb-6 flex space-x-1 border-b border-stone-300 print:hidden overflow-x-auto">
           <button
@@ -274,9 +324,23 @@ export default function PoolsPage() {
                     <input type="text" className="w-20 rounded border-none bg-white/20 px-2 py-0.5 text-white placeholder-white/50 focus:bg-white focus:text-black print:border print:border-black print:bg-white print:text-black" placeholder="___" />
                   </div>
                 </div>
-                <button onClick={() => handlePrint(pool.id)} className="rounded bg-white/20 px-3 py-1 text-sm font-medium hover:bg-white/30 print:hidden transition-colors">
-                  Imprimir esta poule
-                </button>
+                
+                {/* BOTONES DE ACCIÓN */}
+                <div className="flex items-center gap-3 print:hidden">
+                  <button 
+                    onClick={() => handleSaveScores(pool)} 
+                    disabled={saveScoresMutation.isPending}
+                    className="rounded bg-green-500 hover:bg-green-400 px-4 py-1 text-sm font-bold text-white transition-colors shadow-sm disabled:opacity-50"
+                  >
+                    {saveScoresMutation.isPending ? 'Guardando...' : '💾 Guardar Resultados'}
+                  </button>
+                  <button 
+                    onClick={() => handlePrint(pool.id)} 
+                    className="rounded bg-white/20 px-3 py-1 text-sm font-medium hover:bg-white/30 transition-colors"
+                  >
+                    Imprimir
+                  </button>
+                </div>
               </div>
               
               <div className="p-4 overflow-x-auto">
