@@ -1,11 +1,16 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
-COPY apps/frontend/package*.json ./apps/frontend/
+
+# Mismo principio que el backend: instalar desde la raíz del workspace para que
+# @pouleflow/shared-types se resuelva como paquete local, no del registro público.
+COPY package.json ./
+COPY apps/frontend/package.json ./apps/frontend/package.json
+COPY packages/shared-types/package.json ./packages/shared-types/package.json
+RUN npm install --workspaces --include-workspace-root
+
+COPY apps/frontend ./apps/frontend
 COPY packages/shared-types ./packages/shared-types
-WORKDIR /app/apps/frontend
-RUN npm install
-COPY apps/frontend ./
-RUN npm run build
+RUN npm run build --workspace=@pouleflow/frontend
 
 FROM nginx:1.27-alpine
 COPY --from=builder /app/apps/frontend/dist /usr/share/nginx/html
