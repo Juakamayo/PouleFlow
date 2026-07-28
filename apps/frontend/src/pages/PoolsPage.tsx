@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import type { EventDTO, PoolDTO } from '@pouleflow/shared-types';
@@ -50,7 +50,13 @@ export default function PoolsPage() {
   const [errors, setErrors] = useState<string[]>([]);
   const [lastResult, setLastResult] = useState<GenerateResult | null>(null);
   
-  const [matrix, setMatrix] = useState<Record<string, string>>({});
+  // Persistencia local: Inicializa con lo que hay en localStorage
+  const [matrix, setMatrix] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem(`pouleflow_matrix_${evId}`);
+    return saved ? JSON.parse(saved) : {};
+  });
+  
+  const [editingPools, setEditingPools] = useState<Set<number>>(new Set());
   const [printPoolId, setPrintPoolId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<number | 'ALL'>('ALL');
 
@@ -68,6 +74,43 @@ export default function PoolsPage() {
     queryKey: ['pools', evId],
     queryFn: () => api.get<PoolDTO[]>(`/events/${evId}/pools`),
   });
+
+  // Efecto para sincronizar la BD hacia la UI (Solo si la poule está guardada y NO en modo edición)
+  useEffect(() => {
+    if (poolsQuery.data) {
+      setMatrix(prev => {
+        const next = { ...prev };
+        let hasChanges = false;
+        
+        poolsQuery.data.forEach(pool => {
+          if (pool.bouts && pool.bouts.length > 0 && !editingPools.has(pool.id)) {
+            pool.bouts.forEach(bout => {
+              const aIdx = pool.assignments.findIndex(a => a.fencerId === bout.fencerAId);
+              const bIdx = pool.assignments.findIndex(a => a.fencerId === bout.fencerBId);
+              
+              if (aIdx !== -1 && bIdx !== -1) {
+                const keyA = `${pool.id}_${aIdx}_${bIdx}`;
+                const keyB = `${pool.id}_${bIdx}_${aIdx}`;
+                
+                const isVA = bout.scoreA > bout.scoreB;
+                const valA = isVA && bout.scoreA === 5 ? 'V' : (isVA ? `V${bout.scoreA}` : `D${bout.scoreA}`);
+                const valB = !isVA && bout.scoreB === 5 ? 'V' : (!isVA ? `V${bout.scoreB}` : `D${bout.scoreB}`);
+                
+                if (next[keyA] !== valA) { next[keyA] = valA; hasChanges = true; }
+                if (next[keyB] !== valB) { next[keyB] = valB; hasChanges = true; }
+              }
+            });
+          }
+        });
+
+        if (hasChanges) {
+          localStorage.setItem(`pouleflow_matrix_${evId}`, JSON.stringify(next));
+          return next;
+        }
+        return prev;
+      });
+    }
+  }, [poolsQuery.data, evId, editingPools]);
 
   const fencerCount = (() => {
     const evData = eventQuery.data as any;
@@ -89,7 +132,10 @@ export default function PoolsPage() {
       queryClient.invalidateQueries({ queryKey: ['pools', evId] });
       setLastResult(result);
       setErrors([]);
+      // Al generar de cero, limpiamos la persistencia local
+      localStorage.removeItem(`pouleflow_matrix_${evId}`);
       setMatrix({}); 
+      setEditingPools(new Set());
       setActiveTab('ALL');
     },
     onError: (error) => {
@@ -102,7 +148,9 @@ export default function PoolsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pools', evId] });
       setLastResult(null);
+      localStorage.removeItem(`pouleflow_matrix_${evId}`);
       setMatrix({});
+      setEditingPools(new Set());
       setActiveTab('ALL');
     },
   });
@@ -111,8 +159,12 @@ export default function PoolsPage() {
     mutationFn: ({ poolId, bouts }: { poolId: number, bouts: any[] }) => {
       return api.post(`/events/${evId}/pools/${poolId}/scores`, { bouts });
     },
-    onSuccess: () => {
-      alert('¡Resultados guardados exitosamente en la base de datos!');
+    onSuccess: (_, variables) => {
+      setEditingPools(prev => {
+        const next = new Set(prev);
+        next.delete(variables.poolId);
+        return next;
+      });
       queryClient.invalidateQueries({ queryKey: ['pools', evId] });
     },
     onError: (error) => {
@@ -142,7 +194,6 @@ export default function PoolsPage() {
     }
   }
 
-  // --- LÓGICA DE AUTO-FOCUS ---
   const advanceFocus = (poolId: number, row: number, col: number, N: number) => {
     let nextRow = row;
     let nextCol = col + 1;
@@ -157,23 +208,20 @@ export default function PoolsPage() {
         const nextInput = document.getElementById(`cell_${poolId}_${nextRow}_${nextCol}`);
         if (nextInput) {
           (nextInput as HTMLInputElement).focus();
-          (nextInput as HTMLInputElement).select(); // Selecciona el texto al entrar
+          (nextInput as HTMLInputElement).select(); 
         }
         break;
       }
     }
   };
 
-  // --- NUEVA VALIDACIÓN Y MANEJO DE PUNTAJE ---
   const handleScoreChange = (poolId: number, row: number, col: number, val: string, N: number) => {
     const newVal = val.toUpperCase().trim();
 
-    // 1. Validar formato FIE (Permite vacío, V, D, números 0-5 y combinaciones como V5, D2)
     if (newVal !== '' && !/^[VD]?[0-5]?$/.test(newVal)) {
       return; 
     }
 
-    // 2. Validación de 5 vs 5 (Evitar que ambos ganen)
     const isWinningScore = newVal === '5' || newVal === 'V' || newVal.startsWith('V');
     if (isWinningScore) {
       const oppScore = matrix[`${poolId}_${col}_${row}`];
@@ -186,10 +234,12 @@ export default function PoolsPage() {
       }
     }
 
-    // 3. Guardar estado
-    setMatrix(prev => ({ ...prev, [`${poolId}_${row}_${col}`]: newVal }));
+    setMatrix(prev => {
+      const next = { ...prev, [`${poolId}_${row}_${col}`]: newVal };
+      localStorage.setItem(`pouleflow_matrix_${evId}`, JSON.stringify(next));
+      return next;
+    });
 
-    // 4. Auto-Advance inteligente (Avanza solo si se escribió un número definitivo o la letra V)
     if (/^[0-5]$/.test(newVal) || newVal === 'V' || /^[VD][0-5]$/.test(newVal)) {
       advanceFocus(poolId, row, col, N);
     }
@@ -201,6 +251,12 @@ export default function PoolsPage() {
       window.print();
       setPrintPoolId(null);
     }, 150);
+  };
+
+  const handleEditPool = (poolId: number) => {
+    if (window.confirm("¿Está seguro que desea editar esta poule? Los resultados ya están guardados y afectarán el ranking final.")) {
+      setEditingPools(prev => new Set(prev).add(poolId));
+    }
   };
 
   const handleSaveScores = (pool: PoolDTO) => {
@@ -236,7 +292,6 @@ export default function PoolsPage() {
        alert('No hay asaltos con resultados completos (ida y vuelta) para guardar.');
        return;
     }
-
     saveScoresMutation.mutate({ poolId: pool.id, bouts: boutsToSave });
   };
 
@@ -324,6 +379,11 @@ export default function PoolsPage() {
           const N = pool.assignments.length;
           const boutOrder = FIE_BOUT_ORDERS[N] || [];
           
+          // Estados de Bloqueo
+          const isSavedInDB = (pool.bouts?.length ?? 0) > 0;
+          const isLocked = isSavedInDB && !editingPools.has(pool.id);
+          const bgTableClass = isLocked ? 'bg-amber-50/50' : 'bg-white';
+          
           const rowsStats = pool.assignments.map((_, i) => {
             let V = 0, TD = 0, TR = 0, matches = 0;
             for (let j = 0; j < N; j++) {
@@ -373,13 +433,22 @@ export default function PoolsPage() {
                 </div>
                 
                 <div className="flex items-center gap-3 print:hidden">
-                  <button 
-                    onClick={() => handleSaveScores(pool)} 
-                    disabled={saveScoresMutation.isPending}
-                    className="rounded bg-green-500 hover:bg-green-400 px-4 py-1 text-sm font-bold text-white transition-colors shadow-sm disabled:opacity-50"
-                  >
-                    {saveScoresMutation.isPending ? 'Guardando...' : '💾 Guardar Resultados'}
-                  </button>
+                  {isLocked ? (
+                    <button 
+                      onClick={() => handleEditPool(pool.id)} 
+                      className="rounded bg-amber-500 hover:bg-amber-400 px-4 py-1 text-sm font-bold text-white transition-colors shadow-sm"
+                    >
+                      ✏️ Editar
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={() => handleSaveScores(pool)} 
+                      disabled={saveScoresMutation.isPending}
+                      className="rounded bg-green-500 hover:bg-green-400 px-4 py-1 text-sm font-bold text-white transition-colors shadow-sm disabled:opacity-50"
+                    >
+                      {saveScoresMutation.isPending ? 'Guardando...' : '💾 Guardar Resultados'}
+                    </button>
+                  )}
                   <button 
                     onClick={() => handlePrint(pool.id)} 
                     className="rounded bg-white/20 px-3 py-1 text-sm font-medium hover:bg-white/30 transition-colors"
@@ -405,12 +474,12 @@ export default function PoolsPage() {
                       <th className="w-10 border border-stone-300 bg-stone-100 text-center font-bold text-graphite-700 print:bg-stone-100">Pl</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className={bgTableClass}>
                     {pool.assignments.map((a, i) => {
                       const stats = rowsStats[i];
                       return (
                         <tr key={a.id}>
-                          <td className="border border-stone-300 text-center font-bold bg-stone-50 print:bg-stone-50">{i + 1}</td>
+                          <td className={`border border-stone-300 text-center font-bold print:bg-stone-50 ${isLocked ? 'bg-amber-100/50' : 'bg-stone-50'}`}>{i + 1}</td>
                           <td className="border border-stone-300 px-2 py-1">
                             <div className="font-semibold uppercase text-graphite-900">{a.fencer?.lastName}</div>
                             <div className="flex justify-between text-xs text-graphite-500">
@@ -440,7 +509,8 @@ export default function PoolsPage() {
                                 <input
                                   id={`cell_${pool.id}_${i}_${j}`}
                                   type="text"
-                                  className={`w-full h-full min-h-[40px] text-center text-sm font-mono border-none focus:ring-2 focus:ring-inset focus:ring-blue-500 outline-none uppercase bg-transparent ${textColorClass}`}
+                                  disabled={isLocked}
+                                  className={`w-full h-full min-h-[40px] text-center text-sm font-mono border-none focus:ring-2 focus:ring-inset focus:ring-blue-500 outline-none uppercase bg-transparent ${textColorClass} ${isLocked ? 'cursor-not-allowed opacity-90' : ''}`}
                                   maxLength={3}
                                   value={myScoreRaw || ''}
                                   onChange={(e) => handleScoreChange(pool.id, i, j, e.target.value, N)}
@@ -455,7 +525,7 @@ export default function PoolsPage() {
                           <td className="border border-stone-300 text-center font-mono font-bold bg-blue-50/30 print:bg-transparent">
                             {stats.Ind > 0 ? `+${stats.Ind}` : stats.Ind}
                           </td>
-                          <td className="border border-stone-300 text-center font-bold bg-stone-100 print:bg-stone-100">{placements[i]}</td>
+                          <td className={`border border-stone-300 text-center font-bold print:bg-stone-100 ${isLocked ? 'bg-amber-100/30' : 'bg-stone-100'}`}>{placements[i]}</td>
                         </tr>
                       );
                     })}
@@ -501,7 +571,7 @@ export default function PoolsPage() {
                           }
 
                           return (
-                            <tr key={idx} className="bg-white">
+                            <tr key={idx} className={bgTableClass}>
                               <td className="border border-stone-300 px-2 py-1 text-center text-stone-500">{idx + 1}</td>
                               <td className="border border-stone-300 px-2 py-1 text-center font-bold text-graphite-700">
                                 {pair[0]} vs. {pair[1]}
