@@ -9,6 +9,7 @@ import { WeaponModule } from './modules/weapon/weapon.module';
 import { CategoryModule } from './modules/category/category.module';
 import { TournamentModule } from './modules/tournament/tournament.module';
 import { EventModule } from './modules/event/event.module';
+import { RegistrationModule } from './modules/registration/registration.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { EventModule } from './modules/event/event.module';
     CategoryModule,
     TournamentModule,
     EventModule,
+    RegistrationModule,
   ],
   controllers: [AppController],
 })

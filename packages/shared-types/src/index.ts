@@ -65,6 +65,15 @@ export interface EventDTO {
   gender: Gender;
 }
 
+export interface RegistrationDTO {
+  id: number;
+  eventId: number;
+  event?: EventDTO;
+  fencerId: number;
+  fencer?: FencerDTO;
+  seedRank: number | null;
+}
+
 export interface PoolBoutDTO {
   id: number;
   poolId: number;

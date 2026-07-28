@@ -6,6 +6,7 @@ import FencersPage from './pages/FencersPage';
 import RefereesPage from './pages/RefereesPage';
 import TournamentsPage from './pages/TournamentsPage';
 import EventsPage from './pages/EventsPage';
+import RegistrationsPage from './pages/RegistrationsPage';
 
 function MesaDeControl() {
   return <div className="p-6">Mesa de control — PouleFlow</div>;
@@ -27,6 +28,10 @@ export default function App() {
           <Route path="referees" element={<RefereesPage />} />
           <Route path="tournaments" element={<TournamentsPage />} />
           <Route path="tournaments/:tournamentId/events" element={<EventsPage />} />
+          <Route
+            path="tournaments/:tournamentId/events/:eventId/registrations"
+            element={<RegistrationsPage />}
+          />
         </Route>
         <Route path="/mesa/:pistaId" element={<MesaDeControl />} />
         <Route path="/display/:pistaId" element={<PantallaEstadio />} />

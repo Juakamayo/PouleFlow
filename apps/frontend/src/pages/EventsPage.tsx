@@ -194,7 +194,13 @@ export default function EventsPage() {
                   {weaponLabels[ev.weapon?.name ?? ''] ?? ev.weapon?.name} {genderLabels[ev.gender]}{' '}
                   {ev.category?.name}
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-3 text-right whitespace-nowrap">
+                  <Link
+                    to={`/admin/tournaments/${tId}/events/${ev.id}/registrations`}
+                    className="mr-3 text-xs font-medium text-graphite-700 hover:text-graphite-900"
+                  >
+                    Inscripciones
+                  </Link>
                   <button
                     onClick={() => deleteMutation.mutate(ev.id)}
                     className="text-xs font-medium text-piste hover:text-piste-dark"
