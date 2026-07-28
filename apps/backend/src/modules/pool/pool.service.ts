@@ -6,11 +6,8 @@ import { SaveScoresDto } from './dto/save-scores.dto';
 @Injectable()
 export class PoolService {
   constructor(private prisma: PrismaService) {}
-
-  // ... (Mantén los métodos generateForEvent, findByEvent y deleteByEvent que ya tenías)
   
   async generateForEvent(eventId: number, force = false, manualPoolCount?: number) {
-    // Código existente de generación (mantenlo igual)
     const event = await this.prisma.event.findUnique({ where: { id: eventId }, include: { registrations: { include: { fencer: true } } } });
     if (!event) throw new NotFoundException('Evento no encontrado');
     if (event.registrations.length < 2) throw new ConflictException('Mínimo 2 tiradores');
@@ -65,18 +62,13 @@ export class PoolService {
     return this.prisma.pool.deleteMany({ where: { eventId } });
   }
 
-  // --- NUEVA LÓGICA DE BACKEND ---
-
   async savePoolScores(poolId: number, dto: SaveScoresDto) {
     const pool = await this.prisma.pool.findUnique({ where: { id: poolId } });
     if (!pool) throw new NotFoundException('Poule no encontrada');
 
-    // Usamos una transacción para guardar todos los asaltos de una vez
     return this.prisma.$transaction(async (tx) => {
-      // Borramos los asaltos previos de esta poule para evitar duplicados
       await tx.poolBout.deleteMany({ where: { poolId } });
 
-      // Insertamos los nuevos resultados
       if (dto.bouts.length > 0) {
         await tx.poolBout.createMany({
           data: dto.bouts.map(bout => ({
@@ -85,6 +77,7 @@ export class PoolService {
             fencerBId: bout.fencerBId,
             scoreA: bout.scoreA,
             scoreB: bout.scoreB,
+            boutOrder: bout.boutOrder,
           }))
         });
       }
@@ -98,7 +91,6 @@ export class PoolService {
 
     const statsMap = new Map<number, any>();
 
-    // Inicializar el mapa con todos los inscritos
     for (const pool of pools) {
       for (const assignment of pool.assignments) {
         statsMap.set(assignment.fencerId, {
@@ -109,7 +101,6 @@ export class PoolService {
       }
     }
 
-    // Calcular estadísticas cruzando todos los asaltos del evento
     for (const pool of pools) {
       for (const bout of pool.bouts) {
         const statA = statsMap.get(bout.fencerAId);
@@ -131,7 +122,6 @@ export class PoolService {
       }
     }
 
-    // Finalizar cálculos y ordenar FIE
     const ranking = Array.from(statsMap.values()).map(stat => {
       stat.Ind = stat.TD - stat.TR;
       stat.ratio = stat.matches > 0 ? stat.V / stat.matches : 0;
@@ -139,9 +129,9 @@ export class PoolService {
     });
 
     ranking.sort((a, b) => {
-      if (b.ratio !== a.ratio) return b.ratio - a.ratio; // 1. Porcentaje de victorias
-      if (b.Ind !== a.Ind) return b.Ind - a.Ind;         // 2. Indicador
-      return b.TD - a.TD;                                // 3. Toques Dados
+      if (b.ratio !== a.ratio) return b.ratio - a.ratio; 
+      if (b.Ind !== a.Ind) return b.Ind - a.Ind;         
+      return b.TD - a.TD;                                
     });
 
     return ranking.map((stat, index) => ({ ...stat, seed: index + 1 }));

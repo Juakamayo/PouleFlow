@@ -13,6 +13,9 @@ export class BoutScoreDto {
 
   @IsInt()
   scoreB: number;
+
+  @IsInt()
+  boutOrder: number;
 }
 
 export class SaveScoresDto {
