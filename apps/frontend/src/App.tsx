@@ -1,8 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-
-function AdminPanel() {
-  return <div className="p-6">Panel de administración — PouleFlow</div>;
-}
+import AdminLayout from './components/AdminLayout';
+import CountriesPage from './pages/CountriesPage';
+import ClubsPage from './pages/ClubsPage';
 
 function MesaDeControl() {
   return <div className="p-6">Mesa de control — PouleFlow</div>;
@@ -16,7 +15,11 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/admin/*" element={<AdminPanel />} />
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<Navigate to="/admin/countries" replace />} />
+          <Route path="countries" element={<CountriesPage />} />
+          <Route path="clubs" element={<ClubsPage />} />
+        </Route>
         <Route path="/mesa/:pistaId" element={<MesaDeControl />} />
         <Route path="/display/:pistaId" element={<PantallaEstadio />} />
         <Route path="*" element={<Navigate to="/admin" replace />} />

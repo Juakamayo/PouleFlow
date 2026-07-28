@@ -20,6 +20,13 @@ enum WeaponName {
   SABER
 }
 
+enum BoutStatus {
+  COMPLETED    // Asalto terminado normalmente (por tiempo o puntaje)
+  ABANDONMENT  // Retiro por lesión
+  EXCLUSION    // Tarjeta negra
+  MEDICAL      // Retiro médico antes de iniciar
+}
+
 model Country {
   id      Int      @id @default(autoincrement())
   name    String   @unique
@@ -54,8 +61,10 @@ model Fencer {
   poolAssignments     PoolAssignment[]
   boutsAsA            PoolBout[]         @relation("BoutFencerA")
   boutsAsB            PoolBout[]         @relation("BoutFencerB")
+  boutsWon            PoolBout[]         @relation("BoutWinner")
   bracketMatchesAsA   BracketMatch[]     @relation("MatchFencerA")
   bracketMatchesAsB   BracketMatch[]     @relation("MatchFencerB")
+  bracketMatchesWon   BracketMatch[]     @relation("MatchWinner")
 
   @@index([lastName, firstName])
 }
@@ -133,27 +142,40 @@ model Pool {
 }
 
 model PoolAssignment {
-  id       Int    @id @default(autoincrement())
-  poolId   Int
-  pool     Pool   @relation(fields: [poolId], references: [id])
-  fencerId Int
-  fencer   Fencer @relation(fields: [fencerId], references: [id])
+  id              Int    @id @default(autoincrement())
+  poolId          Int
+  pool            Pool   @relation(fields: [poolId], references: [id])
+  fencerId        Int
+  fencer          Fencer @relation(fields: [fencerId], references: [id])
+
+  // Cache de índices calculados tras cargar los resultados de la poule.
+  // Se recalculan cada vez que se registra/edita un PoolBout de esta poule,
+  // evitando tener que sumar todos los bouts en cada consulta de clasificación.
+  victories       Int    @default(0) // V — victorias
+  touchesScored   Int    @default(0) // HS — toques dados (hits scored)
+  touchesReceived Int    @default(0) // HR — toques recibidos (hits received)
+  indicator       Int    @default(0) // Ind — HS - HR
 
   @@unique([poolId, fencerId])
 }
 
 model PoolBout {
-  id         Int    @id @default(autoincrement())
+  id         Int        @id @default(autoincrement())
   poolId     Int
-  pool       Pool   @relation(fields: [poolId], references: [id])
+  pool       Pool       @relation(fields: [poolId], references: [id])
+  boutOrder  Int        // Orden fijo del asalto dentro de la poule (1, 2, 3...), define a quién llamar y cuándo
   fencerAId  Int
-  fencerA    Fencer @relation("BoutFencerA", fields: [fencerAId], references: [id])
+  fencerA    Fencer     @relation("BoutFencerA", fields: [fencerAId], references: [id])
   fencerBId  Int
-  fencerB    Fencer @relation("BoutFencerB", fields: [fencerBId], references: [id])
+  fencerB    Fencer     @relation("BoutFencerB", fields: [fencerBId], references: [id])
   scoreA     Int
   scoreB     Int
+  winnerId   Int?
+  winner     Fencer?    @relation("BoutWinner", fields: [winnerId], references: [id])
+  status     BoutStatus @default(COMPLETED)
 
   @@unique([poolId, fencerAId, fencerBId])
+  @@unique([poolId, boutOrder])
 }
 
 model Tableau {
@@ -165,19 +187,22 @@ model Tableau {
 }
 
 model BracketMatch {
-  id         Int      @id @default(autoincrement())
+  id         Int        @id @default(autoincrement())
   tableauId  Int
-  tableau    Tableau  @relation(fields: [tableauId], references: [id])
+  tableau    Tableau    @relation(fields: [tableauId], references: [id])
   round      Int
   position   Int
   fencerAId  Int?
-  fencerA    Fencer?  @relation("MatchFencerA", fields: [fencerAId], references: [id])
+  fencerA    Fencer?    @relation("MatchFencerA", fields: [fencerAId], references: [id])
   fencerBId  Int?
-  fencerB    Fencer?  @relation("MatchFencerB", fields: [fencerBId], references: [id])
+  fencerB    Fencer?    @relation("MatchFencerB", fields: [fencerBId], references: [id])
   scoreA     Int?
   scoreB     Int?
+  winnerId   Int?
+  winner     Fencer?    @relation("MatchWinner", fields: [winnerId], references: [id])
+  status     BoutStatus @default(COMPLETED)
   refereeId  Int?
-  referee    Referee? @relation(fields: [refereeId], references: [id])
+  referee    Referee?   @relation(fields: [refereeId], references: [id])
 
   @@unique([tableauId, round, position])
 }

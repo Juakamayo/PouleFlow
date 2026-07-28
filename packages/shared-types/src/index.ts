@@ -1,6 +1,19 @@
 export type Gender = 'MALE' | 'FEMALE' | 'MIXED';
 export type WeaponName = 'EPEE' | 'FOIL' | 'SABER';
 
+export interface CountryDTO {
+  id: number;
+  name: string;
+  iocCode: string;
+}
+
+export interface ClubDTO {
+  id: number;
+  name: string;
+  countryId: number;
+  country?: CountryDTO;
+}
+
 export interface FencerDTO {
   id: number;
   firstName: string;
