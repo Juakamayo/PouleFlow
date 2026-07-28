@@ -201,6 +201,12 @@ export default function EventsPage() {
                   >
                     Inscripciones
                   </Link>
+                  <Link
+                    to={`/admin/tournaments/${tId}/events/${ev.id}/pools`}
+                    className="mr-3 text-xs font-medium text-graphite-700 hover:text-graphite-900"
+                  >
+                    Poules
+                  </Link>
                   <button
                     onClick={() => deleteMutation.mutate(ev.id)}
                     className="text-xs font-medium text-piste hover:text-piste-dark"

@@ -10,6 +10,7 @@ import { CategoryModule } from './modules/category/category.module';
 import { TournamentModule } from './modules/tournament/tournament.module';
 import { EventModule } from './modules/event/event.module';
 import { RegistrationModule } from './modules/registration/registration.module';
+import { PoolModule } from './modules/pool/pool.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { RegistrationModule } from './modules/registration/registration.module';
     TournamentModule,
     EventModule,
     RegistrationModule,
+    PoolModule,
   ],
   controllers: [AppController],
 })

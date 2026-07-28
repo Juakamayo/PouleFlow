@@ -74,6 +74,27 @@ export interface RegistrationDTO {
   seedRank: number | null;
 }
 
+export interface PoolAssignmentDTO {
+  id: number;
+  poolId: number;
+  fencerId: number;
+  fencer?: FencerDTO;
+  victories: number;
+  touchesScored: number;
+  touchesReceived: number;
+  indicator: number;
+}
+
+export interface PoolDTO {
+  id: number;
+  eventId: number;
+  poolNumber: number;
+  pisteNumber: number | null;
+  refereeId: number | null;
+  referee?: RefereeDTO | null;
+  assignments: PoolAssignmentDTO[];
+}
+
 export interface PoolBoutDTO {
   id: number;
   poolId: number;
