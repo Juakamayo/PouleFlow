@@ -5,6 +5,7 @@ const navItems = [
   { to: '/admin/clubs', label: 'Clubes' },
   { to: '/admin/fencers', label: 'Tiradores' },
   { to: '/admin/referees', label: 'Árbitros' },
+  { to: '/admin/tournaments', label: 'Torneos' },
 ];
 
 export default function AdminLayout() {
