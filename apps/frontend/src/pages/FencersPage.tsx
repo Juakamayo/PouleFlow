@@ -28,6 +28,7 @@ export default function FencersPage() {
   const [form, setForm] = useState<FencerFormState>(emptyForm);
   const [search, setSearch] = useState('');
   const [errors, setErrors] = useState<string[]>([]);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   const fencersQuery = useQuery({
     queryKey: ['fencers', search],
@@ -57,6 +58,20 @@ export default function FencersPage() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ id, dto }: { id: number; dto: Record<string, unknown> }) =>
+      api.patch<FencerDTO>(`/fencers/${id}`, dto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fencers'] });
+      setForm(emptyForm);
+      setEditingId(null);
+      setErrors([]);
+    },
+    onError: (error) => {
+      setErrors(error instanceof ApiError ? error.messages : ['Error al actualizar el tirador']);
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.delete(`/fencers/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fencers'] }),
@@ -69,16 +84,44 @@ export default function FencersPage() {
     e.preventDefault();
     if (form.countryId === '') return;
 
-    createMutation.mutate({
+    const dto = {
       firstName: form.firstName.trim(),
       lastName: form.lastName.trim(),
       countryId: form.countryId,
-      ...(form.clubId !== '' ? { clubId: form.clubId } : {}),
-      ...(form.nationalRank !== '' ? { nationalRank: Number(form.nationalRank) } : {}),
-      ...(form.internationalRank !== '' ? { internationalRank: Number(form.internationalRank) } : {}),
-      ...(form.points !== '' ? { points: Number(form.points) } : {}),
-    });
+      clubId: form.clubId === '' ? null : form.clubId,
+      nationalRank: form.nationalRank === '' ? null : Number(form.nationalRank),
+      internationalRank: form.internationalRank === '' ? null : Number(form.internationalRank),
+      points: form.points === '' ? 0 : Number(form.points),
+    };
+
+    if (editingId !== null) {
+      updateMutation.mutate({ id: editingId, dto });
+    } else {
+      createMutation.mutate(dto);
+    }
   }
+
+  function startEdit(fencer: FencerDTO) {
+    setEditingId(fencer.id);
+    setForm({
+      firstName: fencer.firstName,
+      lastName: fencer.lastName,
+      countryId: fencer.countryId,
+      clubId: fencer.clubId ?? '',
+      nationalRank: fencer.nationalRank?.toString() ?? '',
+      internationalRank: fencer.internationalRank?.toString() ?? '',
+      points: fencer.points?.toString() ?? '',
+    });
+    setErrors([]);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setForm(emptyForm);
+    setErrors([]);
+  }
+
+  const isSaving = createMutation.isPending || updateMutation.isPending;
 
   const hasCountries = (countriesQuery.data?.length ?? 0) > 0;
 
@@ -103,6 +146,11 @@ export default function FencersPage() {
           onSubmit={handleSubmit}
           className="mb-8 rounded border border-stone-300 bg-white p-4"
         >
+          {editingId !== null && (
+            <div className="mb-3 rounded bg-stone-100 px-3 py-2 text-xs font-medium text-graphite-700">
+              Editando tirador — los cambios se guardan al presionar "Guardar cambios"
+            </div>
+          )}
           <div className="mb-3 grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-graphite-700">
@@ -215,13 +263,28 @@ export default function FencersPage() {
             </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={createMutation.isPending}
-            className="rounded bg-graphite-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-graphite-700 disabled:opacity-50"
-          >
-            {createMutation.isPending ? 'Guardando...' : 'Agregar tirador'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="rounded bg-graphite-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-graphite-700 disabled:opacity-50"
+            >
+              {isSaving
+                ? 'Guardando...'
+                : editingId !== null
+                  ? 'Guardar cambios'
+                  : 'Agregar tirador'}
+            </button>
+            {editingId !== null && (
+              <button
+                type="button"
+                onClick={cancelEdit}
+                className="rounded border border-stone-300 px-4 py-2 text-sm font-medium text-graphite-700 transition-colors hover:bg-stone-100"
+              >
+                Cancelar
+              </button>
+            )}
+          </div>
         </form>
       )}
 
@@ -286,7 +349,13 @@ export default function FencersPage() {
                   {fencer.internationalRank ?? '—'}
                 </td>
                 <td className="px-4 py-3 text-right font-mono text-xs">{fencer.points}</td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-3 text-right whitespace-nowrap">
+                  <button
+                    onClick={() => startEdit(fencer)}
+                    className="mr-3 text-xs font-medium text-graphite-700 hover:text-graphite-900"
+                  >
+                    Editar
+                  </button>
                   <button
                     onClick={() => deleteMutation.mutate(fencer.id)}
                     className="text-xs font-medium text-piste hover:text-piste-dark"

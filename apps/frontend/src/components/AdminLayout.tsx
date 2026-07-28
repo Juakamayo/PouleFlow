@@ -4,6 +4,7 @@ const navItems = [
   { to: '/admin/countries', label: 'Países' },
   { to: '/admin/clubs', label: 'Clubes' },
   { to: '/admin/fencers', label: 'Tiradores' },
+  { to: '/admin/referees', label: 'Árbitros' },
 ];
 
 export default function AdminLayout() {

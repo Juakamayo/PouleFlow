@@ -15,6 +15,14 @@ export interface ClubDTO {
   country?: CountryDTO;
 }
 
+export interface RefereeDTO {
+  id: number;
+  firstName: string;
+  lastName: string;
+  countryId: number;
+  country?: CountryDTO;
+}
+
 export interface FencerDTO {
   id: number;
   firstName: string;
