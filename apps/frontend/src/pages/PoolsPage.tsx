@@ -107,7 +107,6 @@ export default function PoolsPage() {
     },
   });
 
-  // --- NUEVA MUTACIÓN PARA GUARDAR PUNTAJES ---
   const saveScoresMutation = useMutation({
     mutationFn: ({ poolId, bouts }: { poolId: number, bouts: any[] }) => {
       return api.post(`/events/${evId}/pools/${poolId}/scores`, { bouts });
@@ -143,8 +142,57 @@ export default function PoolsPage() {
     }
   }
 
-  const handleScoreChange = (poolId: number, row: number, col: number, val: string) => {
-    setMatrix(prev => ({ ...prev, [`${poolId}_${row}_${col}`]: val.toUpperCase() }));
+  // --- LÓGICA DE AUTO-FOCUS ---
+  const advanceFocus = (poolId: number, row: number, col: number, N: number) => {
+    let nextRow = row;
+    let nextCol = col + 1;
+
+    while (nextRow < N) {
+      if (nextCol >= N) {
+        nextRow++;
+        nextCol = 0;
+      } else if (nextRow === nextCol) {
+        nextCol++;
+      } else {
+        const nextInput = document.getElementById(`cell_${poolId}_${nextRow}_${nextCol}`);
+        if (nextInput) {
+          (nextInput as HTMLInputElement).focus();
+          (nextInput as HTMLInputElement).select(); // Selecciona el texto al entrar
+        }
+        break;
+      }
+    }
+  };
+
+  // --- NUEVA VALIDACIÓN Y MANEJO DE PUNTAJE ---
+  const handleScoreChange = (poolId: number, row: number, col: number, val: string, N: number) => {
+    const newVal = val.toUpperCase().trim();
+
+    // 1. Validar formato FIE (Permite vacío, V, D, números 0-5 y combinaciones como V5, D2)
+    if (newVal !== '' && !/^[VD]?[0-5]?$/.test(newVal)) {
+      return; 
+    }
+
+    // 2. Validación de 5 vs 5 (Evitar que ambos ganen)
+    const isWinningScore = newVal === '5' || newVal === 'V' || newVal.startsWith('V');
+    if (isWinningScore) {
+      const oppScore = matrix[`${poolId}_${col}_${row}`];
+      if (oppScore) {
+        const parsedOpp = parseFencingScore(oppScore);
+        if (parsedOpp.isV || parsedOpp.val === 5) {
+          alert('¡Imposible! Ambos tiradores no pueden anotar 5 puntos o registrar una Victoria en el mismo asalto.');
+          return; 
+        }
+      }
+    }
+
+    // 3. Guardar estado
+    setMatrix(prev => ({ ...prev, [`${poolId}_${row}_${col}`]: newVal }));
+
+    // 4. Auto-Advance inteligente (Avanza solo si se escribió un número definitivo o la letra V)
+    if (/^[0-5]$/.test(newVal) || newVal === 'V' || /^[VD][0-5]$/.test(newVal)) {
+      advanceFocus(poolId, row, col, N);
+    }
   };
 
   const handlePrint = (poolId: number) => {
@@ -155,7 +203,6 @@ export default function PoolsPage() {
     }, 150);
   };
 
-  // --- FUNCIÓN PARA EMPAQUETAR Y ENVIAR AL BACKEND ---
   const handleSaveScores = (pool: PoolDTO) => {
     const N = pool.assignments.length;
     const boutOrder = FIE_BOUT_ORDERS[N] || [];
@@ -325,7 +372,6 @@ export default function PoolsPage() {
                   </div>
                 </div>
                 
-                {/* BOTONES DE ACCIÓN */}
                 <div className="flex items-center gap-3 print:hidden">
                   <button 
                     onClick={() => handleSaveScores(pool)} 
@@ -392,11 +438,13 @@ export default function PoolsPage() {
                             return (
                               <td key={j} className="border border-stone-300 p-0 text-center relative">
                                 <input
+                                  id={`cell_${pool.id}_${i}_${j}`}
                                   type="text"
                                   className={`w-full h-full min-h-[40px] text-center text-sm font-mono border-none focus:ring-2 focus:ring-inset focus:ring-blue-500 outline-none uppercase bg-transparent ${textColorClass}`}
                                   maxLength={3}
                                   value={myScoreRaw || ''}
-                                  onChange={(e) => handleScoreChange(pool.id, i, j, e.target.value)}
+                                  onChange={(e) => handleScoreChange(pool.id, i, j, e.target.value, N)}
+                                  onFocus={(e) => e.target.select()}
                                 />
                               </td>
                             );
