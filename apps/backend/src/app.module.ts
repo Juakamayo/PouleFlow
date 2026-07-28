@@ -11,6 +11,7 @@ import { TournamentModule } from './modules/tournament/tournament.module';
 import { EventModule } from './modules/event/event.module';
 import { RegistrationModule } from './modules/registration/registration.module';
 import { PoolModule } from './modules/pool/pool.module';
+import { TableauModule } from './modules/tableau/tableau.module'; // <-- 1. Importar el módulo
 
 @Module({
   imports: [
@@ -25,7 +26,9 @@ import { PoolModule } from './modules/pool/pool.module';
     EventModule,
     RegistrationModule,
     PoolModule,
+    TableauModule,
   ],
   controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule {}
