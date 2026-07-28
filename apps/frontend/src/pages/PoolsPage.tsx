@@ -211,12 +211,19 @@ export default function PoolsPage() {
                       return (
                         <li key={idx} className="flex items-center justify-between text-sm border border-stone-200 rounded p-2 bg-white shadow-sm">
                           <div className="w-6 text-center font-mono text-xs text-stone-400 font-bold">{idx + 1}</div>
-                          <div className="flex flex-1 items-center justify-end gap-2 text-right">
+                          
+                          {/* Tirador A */}
+                          <div className="flex flex-1 items-baseline justify-end gap-1.5 text-right">
                             <span className="font-medium text-graphite-800">{fA?.lastName}</span>
+                            <span className="text-xs text-graphite-500">{fA?.firstName}</span>
                           </div>
+                          
                           <div className="px-3 font-mono font-bold text-piste/70 text-xs">VS</div>
-                          <div className="flex flex-1 items-center justify-start gap-2">
+                          
+                          {/* Tirador B */}
+                          <div className="flex flex-1 items-baseline justify-start gap-1.5">
                             <span className="font-medium text-graphite-800">{fB?.lastName}</span>
+                            <span className="text-xs text-graphite-500">{fB?.firstName}</span>
                           </div>
                         </li>
                       );
