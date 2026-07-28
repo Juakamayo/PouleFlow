@@ -1,17 +1,16 @@
 import { Module } from '@nestjs/common';
-import { PrismaModule } from './prisma/prisma.module';
 import { AppController } from './app.controller';
+import { AppService } from './app.service'; // Puedes quitar esta línea si no usas el servicio base
+import { PrismaModule } from './prisma/prisma.module';
 import { CountryModule } from './modules/country/country.module';
 import { ClubModule } from './modules/club/club.module';
 import { FencerModule } from './modules/fencer/fencer.module';
 import { RefereeModule } from './modules/referee/referee.module';
-import { WeaponModule } from './modules/weapon/weapon.module';
-import { CategoryModule } from './modules/category/category.module';
 import { TournamentModule } from './modules/tournament/tournament.module';
 import { EventModule } from './modules/event/event.module';
 import { RegistrationModule } from './modules/registration/registration.module';
 import { PoolModule } from './modules/pool/pool.module';
-import { TableauModule } from './modules/tableau/tableau.module'; // <-- 1. Importar el módulo
+import { TableauModule } from './modules/tableau/tableau.module';
 
 @Module({
   imports: [
@@ -20,8 +19,6 @@ import { TableauModule } from './modules/tableau/tableau.module'; // <-- 1. Impo
     ClubModule,
     FencerModule,
     RefereeModule,
-    WeaponModule,
-    CategoryModule,
     TournamentModule,
     EventModule,
     RegistrationModule,
@@ -29,6 +26,6 @@ import { TableauModule } from './modules/tableau/tableau.module'; // <-- 1. Impo
     TableauModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [], // <-- Quitamos AppService de aquí
 })
 export class AppModule {}
