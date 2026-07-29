@@ -25,6 +25,8 @@ enum BoutStatus {
   ABANDONMENT  // Retiro por lesión
   EXCLUSION    // Tarjeta negra
   MEDICAL      // Retiro médico antes de iniciar
+  PENDING
+  COMPLETED
 }
 
 model Country {
