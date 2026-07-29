@@ -180,30 +180,44 @@ model PoolBout {
 }
 
 model Tableau {
-  id             Int            @id @default(autoincrement())
-  eventId        Int
-  event          Event          @relation(fields: [eventId], references: [id])
-  size           Int
+  id           Int      @id @default(autoincrement())
+  createdAt    DateTime @default(DateTime.now())
+  updatedAt    DateTime @updatedAt
+
+  eventId      Int
+  event        Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  size         Int
+  
+  roundConfigs Json     @default("{}")
+
   bracketMatches BracketMatch[]
 }
 
 model BracketMatch {
-  id         Int        @id @default(autoincrement())
-  tableauId  Int
-  tableau    Tableau    @relation(fields: [tableauId], references: [id])
-  round      Int
-  position   Int
-  fencerAId  Int?
-  fencerA    Fencer?    @relation("MatchFencerA", fields: [fencerAId], references: [id])
-  fencerBId  Int?
-  fencerB    Fencer?    @relation("MatchFencerB", fields: [fencerBId], references: [id])
-  scoreA     Int?
-  scoreB     Int?
-  winnerId   Int?
-  winner     Fencer?    @relation("MatchWinner", fields: [winnerId], references: [id])
-  status     BoutStatus @default(COMPLETED)
-  refereeId  Int?
-  referee    Referee?   @relation(fields: [refereeId], references: [id])
+  id            Int      @id @default(autoincrement())
+  createdAt     DateTime @default(DateTime.now())
+  updatedAt     DateTime @updatedAt
 
-  @@unique([tableauId, round, position])
+  tableauId     Int
+  tableau       Tableau  @relation(fields: [tableauId], references: [id], onDelete: Cascade)
+
+  round         Int
+  position      Int
+
+  fencerAId     Int?
+  fencerA       Fencer?  @relation("FencerA", fields: [fencerAId], references: [id])
+
+  fencerBId     Int?
+  fencerB       Fencer?  @relation("FencerB", fields: [fencerBId], references: [id])
+
+  winnerId      Int?
+  winner        Fencer?  @relation("Winner", fields: [winnerId], references: [id])
+
+  scoreA        Int         @default(0)
+  scoreB        Int         @default(0)
+  status        BoutStatus  @default(PENDING)
+  
+
+  targetTouches Int         @default(15)
 }
