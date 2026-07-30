@@ -9,6 +9,7 @@ import EventsPage from './pages/EventsPage';
 import RegistrationsPage from './pages/RegistrationsPage';
 import PoolsPage from './pages/PoolsPage';
 import RankingPage from './pages/RankingPage'; // <-- Importación agregada
+import TableauPage from './pages/TableauPage';
 
 function MesaDeControl() {
   return <div className="p-6">Mesa de control — PouleFlow</div>;
@@ -23,6 +24,10 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/admin" element={<AdminLayout />}>
+        <Route
+  path="tournaments/:tournamentId/events/:eventId/tableau"
+  element={<TableauPage />}
+/>
           <Route index element={<Navigate to="/admin/countries" replace />} />
           <Route path="countries" element={<CountriesPage />} />
           <Route path="clubs" element={<ClubsPage />} />

@@ -26,7 +26,6 @@ enum BoutStatus {
   EXCLUSION    // Tarjeta negra
   MEDICAL      // Retiro médico antes de iniciar
   PENDING
-  COMPLETED
 }
 
 model Country {
@@ -65,9 +64,11 @@ model Fencer {
   boutsAsA            PoolBout[]         @relation("BoutFencerA")
   boutsAsB            PoolBout[]         @relation("BoutFencerB")
   boutsWon            PoolBout[]         @relation("BoutWinner")
-  bracketMatchesAsA   BracketMatch[]     @relation("MatchFencerA")
-  bracketMatchesAsB   BracketMatch[]     @relation("MatchFencerB")
-  bracketMatchesWon   BracketMatch[]     @relation("MatchWinner")
+  
+  // CORRECCIÓN: Los nombres de relación ahora coinciden con BracketMatch
+  bracketMatchesAsA   BracketMatch[]     @relation("FencerA")
+  bracketMatchesAsB   BracketMatch[]     @relation("FencerB")
+  bracketMatchesWon   BracketMatch[]     @relation("Winner")
 
   @@index([lastName, firstName])
 }
@@ -183,7 +184,8 @@ model PoolBout {
 
 model Tableau {
   id           Int      @id @default(autoincrement())
-  createdAt    DateTime @default(DateTime.now())
+  // CORRECCIÓN: Se usa now() en lugar de DateTime.now()
+  createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   eventId      Int
@@ -198,7 +200,8 @@ model Tableau {
 
 model BracketMatch {
   id            Int      @id @default(autoincrement())
-  createdAt     DateTime @default(DateTime.now())
+  // CORRECCIÓN: Se usa now() en lugar de DateTime.now()
+  createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   tableauId     Int
@@ -216,10 +219,13 @@ model BracketMatch {
   winnerId      Int?
   winner        Fencer?  @relation("Winner", fields: [winnerId], references: [id])
 
+  // CORRECCIÓN: Agregamos el árbitro para satisfacer la relación con Referee
+  refereeId     Int?
+  referee       Referee? @relation(fields: [refereeId], references: [id])
+
   scoreA        Int         @default(0)
   scoreB        Int         @default(0)
   status        BoutStatus  @default(PENDING)
   
-
   targetTouches Int         @default(15)
 }

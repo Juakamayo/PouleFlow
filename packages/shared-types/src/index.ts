@@ -1,5 +1,6 @@
 export type Gender = 'MALE' | 'FEMALE' | 'MIXED';
 export type WeaponName = 'EPEE' | 'FOIL' | 'SABER';
+export type BoutStatus = 'COMPLETED' | 'ABANDONMENT' | 'EXCLUSION' | 'MEDICAL' | 'PENDING';
 
 export interface CountryDTO {
   id: number;
@@ -93,6 +94,7 @@ export interface PoolDTO {
   refereeId: number | null;
   referee?: RefereeDTO | null;
   assignments: PoolAssignmentDTO[];
+  bouts?: PoolBoutDTO[];
 }
 
 export interface PoolBoutDTO {
@@ -102,4 +104,32 @@ export interface PoolBoutDTO {
   fencerBId: number;
   scoreA: number;
   scoreB: number;
+}
+
+export interface BracketMatchDTO {
+  id: number;
+  tableauId: number;
+  round: number;
+  position: number;
+  fencerAId: number | null;
+  fencerA?: FencerDTO | null;
+  fencerBId: number | null;
+  fencerB?: FencerDTO | null;
+  winnerId: number | null;
+  winner?: FencerDTO | null;
+  refereeId: number | null;
+  scoreA: number;
+  scoreB: number;
+  status: BoutStatus;
+  targetTouches: number;
+}
+
+export interface TableauDTO {
+  id: number;
+  eventId: number;
+  size: number;
+  roundConfigs: Record<number, number>;
+  bracketMatches: BracketMatchDTO[];
+  createdAt: string;
+  updatedAt: string;
 }

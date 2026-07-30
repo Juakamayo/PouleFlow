@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { generatePools } from './pool-algorithm';
 import { SaveScoresDto } from './dto/save-scores.dto';
@@ -63,7 +63,7 @@ export class PoolService {
   }
 
   async savePoolScores(poolId: number, dto: SaveScoresDto) {
-    const pool = await this.prisma.pool.findUnique({ where: { id: poolId } });
+    const pool = await this.prisma.pool.findUnique({ where: { id: poolId }, include: { assignments: true } });
     if (!pool) throw new NotFoundException('Poule no encontrada');
 
     return this.prisma.$transaction(async (tx) => {
@@ -81,6 +81,37 @@ export class PoolService {
           }))
         });
       }
+
+      // Recalcular campos cacheados de PoolAssignment
+      const statsMap = new Map<number, { V: number; TD: number; TR: number }>();
+      for (const a of pool.assignments) {
+        statsMap.set(a.fencerId, { V: 0, TD: 0, TR: 0 });
+      }
+      for (const bout of dto.bouts) {
+        const sA = statsMap.get(bout.fencerAId);
+        const sB = statsMap.get(bout.fencerBId);
+        if (sA && sB) {
+          sA.TD += bout.scoreA; sA.TR += bout.scoreB;
+          sB.TD += bout.scoreB; sB.TR += bout.scoreA;
+          if (bout.scoreA > bout.scoreB) sA.V++;
+          else if (bout.scoreB > bout.scoreA) sB.V++;
+        }
+      }
+      for (const a of pool.assignments) {
+        const s = statsMap.get(a.fencerId);
+        if (s) {
+          await tx.poolAssignment.update({
+            where: { id: a.id },
+            data: {
+              victories: s.V,
+              touchesScored: s.TD,
+              touchesReceived: s.TR,
+              indicator: s.TD - s.TR,
+            },
+          });
+        }
+      }
+
       return { success: true, message: 'Resultados guardados correctamente' };
     });
   }

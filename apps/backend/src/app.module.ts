@@ -10,6 +10,8 @@ import { EventModule } from './modules/event/event.module';
 import { RegistrationModule } from './modules/registration/registration.module';
 import { PoolModule } from './modules/pool/pool.module';
 import { TableauModule } from './modules/tableau/tableau.module';
+import { WeaponModule } from './modules/weapon/weapon.module';
+import { CategoryModule } from './modules/category/category.module';
 
 @Module({
   imports: [
@@ -23,6 +25,8 @@ import { TableauModule } from './modules/tableau/tableau.module';
     RegistrationModule,
     PoolModule,
     TableauModule,
+    WeaponModule,
+    CategoryModule,
   ],
   controllers: [AppController],
   providers: [],

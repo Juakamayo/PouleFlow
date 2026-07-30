@@ -50,7 +50,6 @@ export default function PoolsPage() {
   const [errors, setErrors] = useState<string[]>([]);
   const [lastResult, setLastResult] = useState<GenerateResult | null>(null);
   
-  // Persistencia local: Inicializa con lo que hay en localStorage
   const [matrix, setMatrix] = useState<Record<string, string>>(() => {
     const saved = localStorage.getItem(`pouleflow_matrix_${evId}`);
     return saved ? JSON.parse(saved) : {};
@@ -75,7 +74,6 @@ export default function PoolsPage() {
     queryFn: () => api.get<PoolDTO[]>(`/events/${evId}/pools`),
   });
 
-  // Efecto para sincronizar la BD hacia la UI (Solo si la poule está guardada y NO en modo edición)
   useEffect(() => {
     if (poolsQuery.data) {
       setMatrix(prev => {
@@ -123,16 +121,17 @@ export default function PoolsPage() {
 
   const generateMutation = useMutation({
     mutationFn: ({ force, finalPoolCount }: { force: boolean; finalPoolCount?: string }) => {
-      const params = new URLSearchParams();
-      if (force) params.set('force', 'true');
-      if (finalPoolCount) params.set('poolCount', finalPoolCount);
-      return api.post<GenerateResult>(`/events/${evId}/pools/generate?${params.toString()}`, {});
+      // CORRECCIÓN: Enviamos el poolCount en el body de la petición, no en la URL.
+      const payload: any = {};
+      if (force) payload.force = true;
+      if (finalPoolCount) payload.poolCount = Number(finalPoolCount);
+      
+      return api.post<GenerateResult>(`/events/${evId}/pools/generate`, payload);
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['pools', evId] });
       setLastResult(result);
       setErrors([]);
-      // Al generar de cero, limpiamos la persistencia local
       localStorage.removeItem(`pouleflow_matrix_${evId}`);
       setMatrix({}); 
       setEditingPools(new Set());
@@ -307,12 +306,34 @@ export default function PoolsPage() {
         <Link to={`/admin/tournaments/${tournamentId}/events`} className="text-xs font-medium text-graphite-700 hover:text-piste">
           ← Volver a Eventos
         </Link>
-        <h2 className="mt-2 font-display text-2xl font-semibold uppercase tracking-wide">
-          Poules — {eventLabel}
-        </h2>
-        <div className="mt-2 flex gap-1">
-          <div className="h-0.5 w-10 bg-piste" />
-          <div className="h-0.5 w-3 bg-stone-300" />
+        <div className="flex justify-between items-end mt-2">
+          <div>
+            <h2 className="font-display text-2xl font-semibold uppercase tracking-wide">
+              Poules — {eventLabel}
+            </h2>
+            <div className="mt-2 flex gap-1">
+              <div className="h-0.5 w-10 bg-piste" />
+              <div className="h-0.5 w-3 bg-stone-300" />
+            </div>
+          </div>
+          
+          {/* BOTONES DE NAVEGACIÓN HACIA RANKING Y ELIMINACIÓN */}
+          {hasPools && (
+            <div className="flex items-center gap-2">
+              <Link 
+                to={`/admin/tournaments/${tournamentId}/events/${eventId}/ranking`}
+                className="rounded bg-stone-800 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-stone-700 shadow-sm flex items-center gap-2"
+              >
+                Ver Clasificación
+              </Link>
+              <Link 
+                to={`/admin/tournaments/${tournamentId}/events/${eventId}/tableau`}
+                className="rounded bg-blue-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-blue-500 shadow-sm flex items-center gap-2"
+              >
+                Ir a Eliminación Directa
+              </Link>
+            </div>
+          )}
         </div>
       </header>
 
@@ -379,7 +400,6 @@ export default function PoolsPage() {
           const N = pool.assignments.length;
           const boutOrder = FIE_BOUT_ORDERS[N] || [];
           
-          // Estados de Bloqueo
           const isSavedInDB = (pool.bouts?.length ?? 0) > 0;
           const isLocked = isSavedInDB && !editingPools.has(pool.id);
           const bgTableClass = isLocked ? 'bg-amber-50/50' : 'bg-white';
@@ -438,7 +458,7 @@ export default function PoolsPage() {
                       onClick={() => handleEditPool(pool.id)} 
                       className="rounded bg-amber-500 hover:bg-amber-400 px-4 py-1 text-sm font-bold text-white transition-colors shadow-sm"
                     >
-                      ✏️ Editar
+                      Editar
                     </button>
                   ) : (
                     <button 
@@ -446,7 +466,7 @@ export default function PoolsPage() {
                       disabled={saveScoresMutation.isPending}
                       className="rounded bg-green-500 hover:bg-green-400 px-4 py-1 text-sm font-bold text-white transition-colors shadow-sm disabled:opacity-50"
                     >
-                      {saveScoresMutation.isPending ? 'Guardando...' : '💾 Guardar Resultados'}
+                      {saveScoresMutation.isPending ? 'Guardando...' : 'Guardar Resultados'}
                     </button>
                   )}
                   <button 
