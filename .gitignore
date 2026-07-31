@@ -8,3 +8,4 @@ build/
 coverage/
 .turbo/
 prisma/migrations/dev.db
+backups/
