@@ -36,12 +36,14 @@ function BracketMatchBox({
   const [sA, setSA] = useState<string>(winner || match.scoreA > 0 ? String(match.scoreA) : '');
   const [sB, setSB] = useState<string>(winner || match.scoreB > 0 ? String(match.scoreB) : '');
   const parse = (v: string) => v === '' ? '' : String(Math.max(0, Number(v) || 0));
+  const maxTouches = match.targetTouches ?? 15;
 
   if (!hasFencers) {
     return <div className="border border-dashed border-stone-300 rounded text-xs w-full h-full flex items-center justify-center text-stone-400">—</div>;
   }
 
   const dirty = (sA === '' ? 0 : Number(sA)) !== match.scoreA || (sB === '' ? 0 : Number(sB)) !== match.scoreB;
+  const invalid = (sA !== '' && Number(sA) > maxTouches) || (sB !== '' && Number(sB) > maxTouches);
 
   return (
     <div className={`bg-white border-2 rounded text-xs w-full h-full flex flex-col overflow-hidden ${winner ? 'border-green-500 bg-green-50/30' : dirty ? 'border-amber-400' : 'border-stone-400'}`}>
@@ -50,11 +52,11 @@ function BracketMatchBox({
           {fA ? `${fA.lastName} ${fA.firstName.charAt(0)}.` : 'BYE'}
         </span>
         <input
-          type="number" min={0} max={99}
+          type="number" min={0} max={maxTouches}
           value={sA}
           placeholder="0"
           onChange={e => setSA(parse(e.target.value))}
-          className={`w-8 text-center font-mono rounded border px-0.5 py-0 text-[11px] ${winner === fA?.id ? 'bg-green-100 border-green-500 font-bold' : 'bg-white border-stone-300'}`}
+          className={`w-8 text-center font-mono rounded border px-0.5 py-0 text-[11px] no-spinner ${winner === fA?.id ? 'bg-green-100 border-green-500 font-bold' : 'bg-white border-stone-300'}`}
         />
       </div>
       <div className="h-px bg-stone-200" />
@@ -63,20 +65,20 @@ function BracketMatchBox({
           {fB ? `${fB.lastName} ${fB.firstName.charAt(0)}.` : 'BYE'}
         </span>
         <input
-          type="number" min={0} max={99}
+          type="number" min={0} max={maxTouches}
           value={sB}
           placeholder="0"
           onChange={e => setSB(parse(e.target.value))}
-          className={`w-8 text-center font-mono rounded border px-0.5 py-0 text-[11px] ${winner === fB?.id ? 'bg-green-100 border-green-500 font-bold' : 'bg-white border-stone-300'}`}
+          className={`w-8 text-center font-mono rounded border px-0.5 py-0 text-[11px] no-spinner ${winner === fB?.id ? 'bg-green-100 border-green-500 font-bold' : 'bg-white border-stone-300'}`}
         />
       </div>
-      {dirty && !winner && (
+      {dirty && (
         <button
           onClick={() => onSave(match.id, sA === '' ? 0 : Number(sA), sB === '' ? 0 : Number(sB))}
-          disabled={saving}
-          className="w-full bg-blue-500 hover:bg-blue-600 text-white text-[9px] font-bold py-0 leading-tight disabled:opacity-50"
+          disabled={saving || invalid}
+          className={`w-full text-white text-[9px] font-bold py-0 leading-tight disabled:opacity-50 ${invalid ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-500 hover:bg-blue-600'}`}
         >
-          {saving ? '...' : 'GUARDAR'}
+          {invalid ? `Máx ${maxTouches}` : saving ? '...' : 'GUARDAR'}
         </button>
       )}
       {winner && (
@@ -340,19 +342,14 @@ export default function TableauPage() {
                     {roundNameMap[roundNum] || `T${roundNum}`}
                   </h3>
                   <div className="mt-1 flex items-center justify-center gap-1">
-                    <select
+                    <TouchSelector
                       value={roundConfigs[roundNum] ?? defaultTouches}
-                      onChange={e => handleTouchChange(roundNum, Number(e.target.value))}
-                      className={`text-[11px] rounded border px-1.5 py-0.5 font-medium cursor-pointer ${
-                        localConfig && localConfig[roundNum] !== undefined
-                          ? 'border-amber-400 bg-amber-50 text-amber-800'
-                          : 'border-stone-300 bg-white text-stone-600'
+                      onChange={v => handleTouchChange(roundNum, v)}
+                      className={`${localConfig && localConfig[roundNum] !== undefined
+                        ? 'border-amber-400 bg-amber-50 text-amber-800'
+                        : 'border-stone-300 bg-white text-stone-600'
                       }`}
-                    >
-                      {TOUCH_OPTIONS.map(t => (
-                        <option key={t} value={t}>{t} toques</option>
-                      ))}
-                    </select>
+                    />
                   </div>
                 </div>
 
@@ -441,10 +438,11 @@ function Toolbar({
         <span className="font-bold text-stone-800">Eliminación Directa</span>
         <span className="text-stone-400">|</span>
         <span className="font-medium text-stone-600">Toques por defecto:</span>
-        <select value={defaultTouches} onChange={(e) => onDefaultTouchesChange(Number(e.target.value))}
-          className="rounded border border-stone-300 bg-white px-2 py-1 text-sm">
-          {TOUCH_OPTIONS.map(t => <option key={t} value={t}>{t} toques</option>)}
-        </select>
+        <TouchSelector
+          value={defaultTouches}
+          onChange={onDefaultTouchesChange}
+          className="border-stone-400 bg-white text-stone-700 text-[13px]"
+        />
       </div>
       <div className="flex items-center gap-2 flex-wrap">
         {hasUnsavedConfig && (
@@ -603,4 +601,61 @@ function FinalResultsView({
 
 function sortByPlacement(items: any[]): any[] {
   return [...items].sort((a, b) => a.placement - b.placement);
+}
+
+function TouchSelector({ value, onChange, className }: {
+  value: number;
+  onChange: (v: number) => void;
+  className?: string;
+}) {
+  const isPreset = TOUCH_OPTIONS.includes(value);
+  const [showInput, setShowInput] = useState(!isPreset);
+  const [inputVal, setInputVal] = useState<string>(isPreset ? '' : String(value));
+
+  useEffect(() => {
+    if (!TOUCH_OPTIONS.includes(value)) {
+      setShowInput(true);
+      setInputVal(String(value));
+    }
+  }, [value]);
+
+  function handleSelect(sel: string) {
+    if (sel === '__custom__') {
+      setShowInput(true);
+      setInputVal('');
+    } else {
+      setShowInput(false);
+      onChange(Number(sel));
+    }
+  }
+
+  function handleInput(v: string) {
+    setInputVal(v);
+    const n = Number(v);
+    if (v !== '' && n >= 1 && n <= 99) {
+      onChange(n);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <select
+        value={showInput ? '__custom__' : value}
+        onChange={e => handleSelect(e.target.value)}
+        className={`text-[11px] rounded border px-1.5 py-0.5 font-medium cursor-pointer ${className ?? 'border-stone-300 bg-white text-stone-600'}`}
+      >
+        {TOUCH_OPTIONS.map(t => <option key={t} value={t}>{t} toques</option>)}
+        <option value="__custom__">Personalizado</option>
+      </select>
+      {showInput && (
+        <input
+          type="number" min={1} max={99}
+          value={inputVal}
+          placeholder="Nº"
+          onChange={e => handleInput(e.target.value)}
+          className="w-12 text-center rounded border border-stone-300 bg-white px-1 py-0.5 text-[11px] font-medium text-stone-700 no-spinner"
+        />
+      )}
+    </div>
+  );
 }

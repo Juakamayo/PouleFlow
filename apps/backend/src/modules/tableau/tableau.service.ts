@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PoolService } from '../pool/pool.service';
 import { GenerateTableauDto } from './dto/generate-tableau.dto';
@@ -47,7 +47,7 @@ export class TableauService {
         await this.prisma.tableau.delete({ where: { id: existingTableau.id } });
       }
 
-      const defaultTouches = dto.defaultTouches ?? 15;
+      const defaultTouches = dto.defaultTouches ?? 10;
       const overrides = dto.roundTouchesOverrides ?? {};
       const roundConfigs: Record<number, number> = {};
       let currentRoundSize = 2;
@@ -157,16 +157,29 @@ export class TableauService {
     let winnerId = dto.winnerId;
     if (dto.scoreA !== undefined && dto.scoreB !== undefined) {
       const target = match.targetTouches || 15;
+      if (dto.scoreA > target || dto.scoreB > target) {
+        throw new BadRequestException(`Los toques no pueden superar el máximo de ${target}.`);
+      }
       if (dto.scoreA >= target || dto.scoreB >= target) {
         data.status = 'COMPLETED';
         if (winnerId === undefined) {
           winnerId = dto.scoreA > dto.scoreB ? match.fencerAId : match.fencerBId;
           data.winnerId = winnerId;
         }
+      } else {
+        data.status = 'PENDING';
+        data.winnerId = null;
+        winnerId = null;
       }
     }
 
+    const previousWinnerId = match.winnerId;
     await this.prisma.bracketMatch.update({ where: { id: matchId }, data });
+
+    // Si el ganador cambió respecto a lo que ya se había avanzado, des-avanzar el anterior
+    if (previousWinnerId && winnerId !== previousWinnerId && match.round > 2) {
+      await this.unadvanceWinner(match.tableauId, match.round, match.position, previousWinnerId);
+    }
 
     // Auto-avanzar el ganador a la siguiente ronda si hay
     if (winnerId && match.round > 2) {
@@ -177,6 +190,41 @@ export class TableauService {
       where: { id: matchId },
       include: { fencerA: { include: { club: true, country: true } }, fencerB: { include: { club: true, country: true } }, winner: true },
     });
+  }
+
+  private async unadvanceWinner(tableauId: number, round: number, position: number, winnerId: number) {
+    const nextRound = round / 2;
+    if (nextRound < 2) return;
+    const nextPosition = Math.ceil(position / 2);
+    const isOdd = position % 2 === 1;
+
+    const nextMatch = await this.prisma.bracketMatch.findFirst({
+      where: { tableauId, round: nextRound, position: nextPosition },
+    });
+    if (!nextMatch) return;
+
+    // Quitar el fencer de la siguiente ronda
+    const slotHasWinner = isOdd
+      ? nextMatch.fencerAId === winnerId
+      : nextMatch.fencerBId === winnerId;
+    if (!slotHasWinner) return;
+
+    const updateData: any = {};
+    if (isOdd) {
+      updateData.fencerAId = null;
+    } else {
+      updateData.fencerBId = null;
+    }
+
+    // Si la siguiente ronda ya se jugó, hay que limpiar también su resultado
+    if (nextMatch.winnerId || nextMatch.status === 'COMPLETED') {
+      updateData.scoreA = 0;
+      updateData.scoreB = 0;
+      updateData.winnerId = null;
+      updateData.status = 'PENDING';
+    }
+
+    await this.prisma.bracketMatch.update({ where: { id: nextMatch.id }, data: updateData });
   }
 
   private async advanceWinner(tableauId: number, round: number, position: number, winnerId: number) {
@@ -211,6 +259,12 @@ export class TableauService {
     if (!tableau) throw new NotFoundException('No hay un cuadro generado.');
 
     const roundConfigs = dto.roundConfigs ?? (tableau.roundConfigs as Record<number, number>);
+    for (const touches of Object.values(roundConfigs)) {
+      if (touches < 1 || touches > 99) {
+        throw new BadRequestException('Los toques por ronda deben estar entre 1 y 99.');
+      }
+    }
+
     await this.prisma.tableau.update({
       where: { id: tableau.id },
       data: { roundConfigs },
