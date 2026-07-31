@@ -49,6 +49,25 @@ fi
 echo "=== 5/6 Construyendo y levantando contenedores ==="
 cd docker
 docker compose build --no-cache
+
+# Levantar solo postgres primero para poder restaurar el backup antes de que arranque el backend
+docker compose up -d postgres
+echo "Esperando a que postgres esté listo..."
+for i in $(seq 1 30); do
+  if docker exec docker-postgres-1 pg_isready -U pouleflow >/dev/null 2>&1; then
+    break
+  fi
+  sleep 2
+done
+
+# Restaurar backup si fue provisto como segundo argumento
+if [ -n "${2:-}" ] && [ -f "${2}" ]; then
+  echo "Restaurando backup de la base de datos: ${2}"
+  docker exec -i docker-postgres-1 psql -U pouleflow -d pouleflow < "${2}"
+  echo "Backup restaurado."
+fi
+
+# Levantar el resto de los servicios
 docker compose up -d
 
 echo "=== 6/6 Habilitando auto-inicio al encender la instancia ==="
