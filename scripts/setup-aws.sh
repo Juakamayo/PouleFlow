@@ -45,6 +45,8 @@ if [ ! -f .env ]; then
 else
   echo "  .env ya existe, no se modifica."
 fi
+# docker compose interpolates .env desde el directorio donde corre, así que lo enlazamos
+ln -sf ../.env docker/.env
 
 echo "=== 5/6 Construyendo y levantando contenedores ==="
 cd docker
